@@ -1,0 +1,67 @@
+[project]
+name = "osh-contrib"
+version = "0.1.0"
+description = "Contrib plugins for the osh CLI (Odoo Shell)"
+authors = [
+    {name = "Daniel Reis"}
+]
+readme = "README.md"
+license = {text = "AGPL-3.0-only"}
+requires-python = ">=3.10"
+keywords = ["odoo", "cli", "shell", "development", "osh"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Framework :: Odoo",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "click>=8.1",
+]
+
+[project.optional-dependencies]
+tests = [
+    "pytest>=7.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/dreispt/osh-contrib"
+Source = "https://github.com/dreispt/osh-contrib"
+
+[build-system]
+requires = ["setuptools>=70.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["osh_*"]
+
+# When plugins are added, also register them for pip installs:
+# [project.entry-points."osh.plugins"]
+# osh_example = "osh_example"
+
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # Pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "W",   # pycodestyle warnings
+]
+ignore = ["E501"]  # line length handled by black
