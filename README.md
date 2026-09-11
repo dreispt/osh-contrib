@@ -22,21 +22,29 @@ Each `osh_*` directory at the repository root is a plugin package:
 osh-contrib/
 ├── __init__.py        # aggregates all osh_* plugins below
 └── osh_example/
-    └── __init__.py    # exposes get_commands(), COMMANDS, ...
+    └── __init__.py    # declares OSH_PLUGIN_MANIFEST = {...}
 ```
 
-The root `__init__.py` auto-discovers every `osh_*` subpackage and re-exports
-its commands, backends and backup sources. There is no registration step:
-adding a plugin is just adding a directory.
+The root `__init__.py` auto-discovers every `osh_*` subpackage and merges
+their `OSH_PLUGIN_MANIFEST` dicts into a single manifest. There is no
+registration step: adding a plugin is just adding a directory.
 
 ## Adding a plugin
 
 1. Create a package `osh_<name>/` at the repository root.
-2. In its `__init__.py`, expose the hooks described in the core
-   [plugin guide](https://github.com/dreispt/osh/blob/master/PLUGINS.md):
-   - `get_commands()` or `COMMANDS` for Click commands,
-   - `get_backends()` or `BACKENDS` for execution backends,
-   - `get_backup_sources()` or `BACKUP_SOURCES` for `osh backup` sources.
+2. In its `__init__.py`, declare `OSH_PLUGIN_MANIFEST` as described in the
+   core [plugin guide](https://github.com/dreispt/osh/blob/master/PLUGINS.md):
+
+   ```python
+   OSH_PLUGIN_MANIFEST = {
+       "commands": [hello],          # click.Command objects
+       "backends": [MyBackend],      # Backend subclasses
+       "backup_sources": [MySource], # BackupSource subclasses
+   }
+   ```
+
+   All keys are optional.
+
 3. Optionally register it under the `osh.plugins` entry point group in
    `pyproject.toml` so `pip install` also exposes it.
 

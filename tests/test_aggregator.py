@@ -14,11 +14,13 @@ def _load_root_plugin():
     return module
 
 
-def test_aggregator_exposes_plugin_hooks():
+def test_aggregator_exposes_manifest():
     module = _load_root_plugin()
-    assert isinstance(module.get_commands(), list)
-    assert isinstance(module.get_backends(), list)
-    assert isinstance(module.get_backup_sources(), list)
+    assert module.OSH_PLUGIN_MANIFEST == {
+        "commands": [],
+        "backends": [],
+        "backup_sources": [],
+    }
 
 
 def test_aggregator_discovers_osh_subplugins(tmp_path, monkeypatch):
@@ -31,9 +33,9 @@ def test_aggregator_discovers_osh_subplugins(tmp_path, monkeypatch):
         "def fake():\n"
         "    pass\n"
         "\n"
-        "COMMANDS = [fake]\n"
+        "OSH_PLUGIN_MANIFEST = {'commands': [fake]}\n"
     )
     module = _load_root_plugin()
     monkeypatch.setattr(module, "__path__", [str(tmp_path)])
-    commands = module.get_commands()
-    assert [cmd.name for cmd in commands] == ["fake"]
+    manifest = module._build_manifest()
+    assert [cmd.name for cmd in manifest["commands"]] == ["fake"]
