@@ -2,7 +2,10 @@
 
 import importlib.util
 import sys
+import types
 from pathlib import Path
+
+import click
 
 
 def _load_root_plugin():
@@ -21,19 +24,10 @@ def test_aggregator_exposes_plugin_hooks():
     assert isinstance(module.get_backup_sources(), list)
 
 
-def test_aggregator_discovers_osh_subplugins(tmp_path, monkeypatch):
-    sub = tmp_path / "osh_fake"
-    sub.mkdir()
-    (sub / "__init__.py").write_text(
-        "import click\n"
-        "\n"
-        "@click.command(name='fake')\n"
-        "def fake():\n"
-        "    pass\n"
-        "\n"
-        "COMMANDS = [fake]\n"
-    )
+def test_aggregator_collects_from_subplugins(monkeypatch):
+    fake = types.ModuleType("osh_fake")
+    cmd = click.Command("fake")
+    fake.COMMANDS = [cmd]
     module = _load_root_plugin()
-    monkeypatch.setattr(module, "__path__", [str(tmp_path)])
-    commands = module.get_commands()
-    assert [cmd.name for cmd in commands] == ["fake"]
+    monkeypatch.setattr(module, "SUBPLUGINS", [fake])
+    assert module.get_commands() == [cmd]

@@ -25,19 +25,21 @@ osh-contrib/
     └── __init__.py    # exposes get_commands(), COMMANDS, ...
 ```
 
-The root `__init__.py` auto-discovers every `osh_*` subpackage and re-exports
-its commands, backends and backup sources. There is no registration step:
-adding a plugin is just adding a directory.
+The root `__init__.py` imports each plugin package into `SUBPLUGINS` and
+re-exports its commands, backends and backup sources. Adding a plugin means
+adding a directory **and** registering the import in the root `__init__.py`.
 
 ## Adding a plugin
 
 1. Create a package `osh_<name>/` at the repository root.
-2. In its `__init__.py`, expose the hooks described in the core
+2. Register it in the root `__init__.py`: add `from . import osh_<name>` and
+   append the module to `SUBPLUGINS`.
+3. In its `__init__.py`, expose the hooks described in the core
    [plugin guide](https://github.com/dreispt/osh/blob/master/PLUGINS.md):
    - `get_commands()` or `COMMANDS` for Click commands,
    - `get_backends()` or `BACKENDS` for execution backends,
    - `get_backup_sources()` or `BACKUP_SOURCES` for `osh backup` sources.
-3. Optionally register it under the `osh.plugins` entry point group in
+4. Optionally register it under the `osh.plugins` entry point group in
    `pyproject.toml` so `pip install` also exposes it.
 
 ## Development
