@@ -21,6 +21,8 @@ README and tests:
 
 - [`osh_echohttp`](osh_echohttp/) — prints the browser URL once `osh odoo`
   is ready (`osh odoo --open` also opens it in the browser).
+- [`osh_uninstall`](osh_uninstall/) — uninstalls Odoo modules, and their
+  installed dependents, from a database (`osh uninstall mod_a,mod_b`).
 - [`osh_update`](osh_update/) — detects project modules whose code changed
   since the last update and runs `odoo -u` on them (`osh update`).
 
@@ -88,6 +90,10 @@ pip install -e ".[tests]" "osh @ git+https://github.com/dreispt/osh.git"
 python -m pytest
 pre-commit run --all-files
 ```
+
+`./run_tests.sh` runs each plugin's test suite in its own pytest process —
+plugins are self-contained, so `python -m pytest osh_<name>/` also works on
+its own.
 
 ## License
 

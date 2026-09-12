@@ -14,6 +14,26 @@ jobs:
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+
     steps:
       - uses: actions/checkout@v4
 
@@ -21,8 +41,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
       - name: Install package and test dependencies
         run: pip install -e ".[tests]" "osh @ git+https://github.com/dreispt/osh.git@master"
 
       - name: Run tests
-        run: pytest -q
+        run: ./run_tests.sh -q
