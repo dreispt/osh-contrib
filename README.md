@@ -91,6 +91,10 @@ python -m pytest
 pre-commit run --all-files
 ```
 
+`./run_tests.sh` runs each plugin's test suite in its own pytest process —
+plugins are self-contained, so `python -m pytest osh_<name>/` also works on
+its own.
+
 ## License
 
 LGPL-3.0-only. See `LICENSE`.
