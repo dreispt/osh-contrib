@@ -1,4 +1,4 @@
-"""Shared fixtures for the osh-contrib test suite."""
+"""Fixtures for the ``osh_update`` test suite."""
 
 import subprocess
 import uuid
