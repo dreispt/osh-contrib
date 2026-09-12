@@ -21,6 +21,8 @@ README and tests:
 
 - [`osh_echohttp`](osh_echohttp/) — prints the browser URL once `osh odoo`
   is ready (`osh odoo --open` also opens it in the browser).
+- [`osh_update`](osh_update/) — detects project modules whose code changed
+  since the last update and runs `odoo -u` on them (`osh update`).
 
 ## Repository layout
 
