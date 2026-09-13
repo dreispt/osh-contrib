@@ -1,15 +1,15 @@
 """PostgreSQL-backed state for ``osh uninstall``.
 
 Module states and dependency relations are read directly from the target
-database through ``psql`` using the project credentials from
-``osh.db.get_pg_credentials`` — the same assumption osh core makes for
-``db_exists`` and friends. This mirrors ``osh_update``'s store module;
-plugins cannot import each other when loaded as user plugins.
+database through ``psql`` run via ``osh.db.run_in_backend`` — the same
+backend-routed execution osh core uses for ``db_exists`` and friends, so
+Docker-backed projects run ``psql`` inside the container automatically.
+This mirrors ``osh_update``'s store module; plugins cannot import each
+other when loaded as user plugins.
 """
 
 import click
-from osh.common import run_subprocess
-from osh.db import get_pg_credentials
+from osh.db import run_in_backend
 
 # Module states in which ``button_uninstall`` accepts the module.
 REMOVABLE_STATES = ("installed", "to upgrade")
@@ -19,7 +19,7 @@ REMOVABLE_STATES = ("installed", "to upgrade")
 DEAD_STATES = ("uninstalled", "uninstallable", "to remove")
 
 
-def get_module_states(base, db_name):
+def get_module_states(base, db_name, ctx=None):
     """Return ``{name: state}`` from ``ir_module_module``.
 
     Returns ``None`` when the table does not exist — the database is not
@@ -30,6 +30,7 @@ def get_module_states(base, db_name):
         db_name,
         "SELECT name, state FROM ir_module_module",
         field_separator="\t",
+        ctx=ctx,
     )
     if returncode != 0:
         if 'relation "ir_module_module" does not exist' in stderr:
@@ -45,7 +46,7 @@ def get_module_states(base, db_name):
     return states
 
 
-def get_removal_set(base, db_name, names):
+def get_removal_set(base, db_name, names, ctx=None):
     """Return the sorted module set ``button_uninstall`` would mark to remove.
 
     Mirrors ``ir.module.module.downstream_dependencies`` — the named modules
@@ -70,7 +71,7 @@ def get_removal_set(base, db_name, names):
         "FROM ir_module_module m JOIN dep ON m.id = dep.id "
         "ORDER BY m.name"
     )
-    returncode, stdout, stderr = _psql(base, db_name, sql)
+    returncode, stdout, stderr = _psql(base, db_name, sql, ctx=ctx)
     if returncode != 0:
         raise click.ClickException(
             f"Could not read module dependencies from '{db_name}': " f"{stderr.strip()}"
@@ -78,19 +79,18 @@ def get_removal_set(base, db_name, names):
     return [n for n in stdout.splitlines() if n]
 
 
-def _psql(base, db_name, sql, *, field_separator=None):
+def _psql(base, db_name, sql, *, field_separator=None, ctx=None):
     """Run *sql* via psql and return ``(returncode, stdout, stderr)``.
 
     The SQL is piped through stdin rather than ``-c`` so large statements
-    cannot hit the per-argument size limit.
+    cannot hit the per-argument size limit. ``run_in_backend`` supplies the
+    ``PG*`` connection variables from the project Odoo config.
     """
-    conn_args, env = get_pg_credentials(base)
     # ON_ERROR_STOP makes psql exit non-zero on SQL errors, like -c does.
     args = ["psql", "-d", db_name, "-t", "-A", "-v", "ON_ERROR_STOP=1"]
     if field_separator:
         args += ["-F", field_separator]
-    args += conn_args
-    returncode, stdout, stderr = run_subprocess(args, env=env, input=sql)
+    returncode, stdout, stderr = run_in_backend(ctx, base, args, input=sql)
     if returncode is None:
         raise click.ClickException("Could not locate `psql`. Is PostgreSQL installed?")
     return returncode, stdout, stderr

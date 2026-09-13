@@ -45,6 +45,7 @@ from . import core
 @click.option(
     "--compose-file",
     default=None,
+    envvar="OSH_COMPOSE_FILE",
     help="Docker Compose file to use (e.g. devel.yaml for Doodba).",
 )
 @click.option(
@@ -66,7 +67,9 @@ from . import core
     is_flag=True,
     help="Print module lists one per line instead of comma-separated.",
 )
+@click.pass_context
 def update(
+    ctx,
     modules,
     db_name,
     update_all,
@@ -102,7 +105,9 @@ def update(
         raise click.ClickException("Pass module names or --all, not both.")
 
     base = find_project_root(required=True)
-    db_name = sanitize_db_name(db_name) if db_name else resolve_db_name_for_run(base)
+    db_name = (
+        sanitize_db_name(db_name) if db_name else resolve_db_name_for_run(base, ctx=ctx)
+    )
 
     if modules:
         targets = sorted(set(modules))
@@ -115,6 +120,7 @@ def update(
             dry_run=dry_run,
             skip_nested=skip_nested,
             per_line=per_line,
+            ctx=ctx,
         )
         if targets is None:
             return
@@ -132,4 +138,5 @@ def update(
         dry_run=dry_run,
         skip_nested=skip_nested,
         per_line=per_line,
+        ctx=ctx,
     )
