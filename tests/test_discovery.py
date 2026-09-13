@@ -19,7 +19,7 @@ def _install_repo(tmp_path, monkeypatch):
     plugin_dir = tmp_path / "plugins"
     plugin_dir.mkdir()
     (plugin_dir / "osh-contrib").symlink_to(REPO_ROOT, target_is_directory=True)
-    monkeypatch.setattr(plugin_loader, "_user_plugin_dir", lambda: plugin_dir)
+    monkeypatch.setattr(plugin_loader, "user_plugin_dir", lambda: plugin_dir)
 
 
 def _repo_plugin_packages():
@@ -70,7 +70,7 @@ def test_discovery_loads_every_plugin(tmp_path, monkeypatch):
     for pkg in _repo_plugin_packages():
         mangled = f"{prefix}_{pkg}"
         assert mangled in sys.modules, f"{pkg} was not imported"
-        source = plugin_loader._plugin_source_name(pkg)
+        source = plugin_loader.plugin_source_name(pkg)
         module = loaded.get(source)
         assert module is not None, f"{pkg} has no OSH_PLUGIN_MANIFEST"
         assert module.__name__ == mangled
@@ -93,7 +93,7 @@ def test_discovery_surfaces_manifests(tmp_path, monkeypatch):
     backends = set(plugin_loader.load_backends())
 
     for pkg in _repo_plugin_packages():
-        source = plugin_loader._plugin_source_name(pkg)
+        source = plugin_loader.plugin_source_name(pkg)
         manifest = loaded[source].OSH_PLUGIN_MANIFEST
         assert manifest, f"{pkg} declares an empty manifest"
 
