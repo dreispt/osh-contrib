@@ -56,9 +56,11 @@ def uninstall(ctx, modules, db_name, yes, dry_run):  # noqa: D401
         raise click.ClickException("No module names given.")
 
     base = find_project_root(required=True)
-    db_name = sanitize_db_name(db_name) if db_name else resolve_db_name_for_run(base)
+    db_name = (
+        sanitize_db_name(db_name) if db_name else resolve_db_name_for_run(base, ctx=ctx)
+    )
 
-    states = store.get_module_states(base, db_name)
+    states = store.get_module_states(base, db_name, ctx=ctx)
     if states is None:
         raise click.ClickException(
             f"Database '{db_name}' is not initialized. Install modules "
@@ -73,7 +75,7 @@ def uninstall(ctx, modules, db_name, yes, dry_run):  # noqa: D401
             "be uninstalled."
         )
 
-    removal = store.get_removal_set(base, db_name, names)
+    removal = store.get_removal_set(base, db_name, names, ctx=ctx)
     dependents = [n for n in removal if n not in names]
     echo.info("Will uninstall: " + ", ".join(names))
     if dependents:
@@ -100,7 +102,7 @@ def uninstall(ctx, modules, db_name, yes, dry_run):  # noqa: D401
 
     # The shell's exit code cannot be trusted on every backend (a
     # tty-backed REPL swallows exceptions), so re-check the states.
-    after = store.get_module_states(base, db_name) or {}
+    after = store.get_module_states(base, db_name, ctx=ctx) or {}
     remaining = [n for n in names if after.get(n) != "uninstalled"]
     if remaining:
         raise click.ClickException(
