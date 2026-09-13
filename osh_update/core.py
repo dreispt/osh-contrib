@@ -30,6 +30,7 @@ def detect_targets(
     dry_run=False,
     skip_nested=False,
     per_line=False,
+    ctx=None,
 ):
     """Compute and report which installed project modules need an update.
 
@@ -37,7 +38,7 @@ def detect_targets(
     should run — a fingerprint baseline was recorded (first run), or
     *status* report mode was used.
     """
-    states = store.get_module_states(base, db_name)
+    states = store.get_module_states(base, db_name, ctx=ctx)
     if states is None:
         raise click.ClickException(
             f"Database '{db_name}' is not initialized. Install modules first "
@@ -51,7 +52,7 @@ def detect_targets(
         return sorted(n for n in third_party if states.get(n) in store.ACTIVE_STATES)
 
     current = fingerprint_project_modules(base, skip_nested=skip_nested)
-    stored = store.read_fingerprints(base, db_name)
+    stored = store.read_fingerprints(base, db_name, ctx=ctx)
 
     known = set(current) | set(stored or {})
     installed = {n for n in known if states.get(n) in store.ACTIVE_STATES}
@@ -81,7 +82,9 @@ def detect_targets(
                 "module(s); no updates would run."
             )
         else:
-            store.write_fingerprints(base, db_name, {n: current[n] for n in installed})
+            store.write_fingerprints(
+                base, db_name, {n: current[n] for n in installed}, ctx=ctx
+            )
             echo.success(
                 f"Recorded baseline fingerprints for {len(installed)} "
                 "module(s); no updates run."
@@ -124,6 +127,7 @@ def update_and_record(
     dry_run=False,
     skip_nested=False,
     per_line=False,
+    ctx=None,
 ):
     """Run ``-u`` for *targets* and refresh stored fingerprints on success.
 
@@ -145,9 +149,9 @@ def update_and_record(
         raise click.ClickException(f"odoo -u failed (exit {returncode}).")
     if dry_run:
         return
-    stored = store.read_fingerprints(base, db_name) or {}
+    stored = store.read_fingerprints(base, db_name, ctx=ctx) or {}
     stored.update(fingerprint_modules_by_name(base, targets, skip_nested=skip_nested))
-    store.write_fingerprints(base, db_name, stored)
+    store.write_fingerprints(base, db_name, stored, ctx=ctx)
     echo.success(f"Updated {len(targets)} module(s) in {elapsed:.1f} seconds.")
 
 
