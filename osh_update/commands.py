@@ -36,13 +36,6 @@ from . import core
     help="Show the diff and the odoo -u command without executing it.",
 )
 @click.option(
-    "--target",
-    "backend_name",
-    default=None,
-    envvar="OSH_RUN_TARGET",
-    help="Execution target: local virtualenv or a plugin backend.",
-)
-@click.option(
     "--compose-file",
     default=None,
     envvar="OSH_COMPOSE_FILE",
@@ -74,7 +67,6 @@ def update(
     db_name,
     update_all,
     dry_run,
-    backend_name,
     compose_file,
     skip_nested,
     status,
@@ -97,7 +89,8 @@ def update(
       osh update --all
       osh update --status
       osh update -d otherdb --dry-run
-      osh update --target docker
+
+    Runs on the project's active backend — see ``osh <backend> activate``.
     """
     if status and modules:
         raise click.ClickException("--status can't be combined with module names.")
@@ -133,7 +126,6 @@ def update(
         base,
         db_name,
         targets,
-        backend_name=backend_name,
         compose_file=compose_file,
         dry_run=dry_run,
         skip_nested=skip_nested,
