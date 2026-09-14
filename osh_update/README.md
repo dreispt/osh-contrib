@@ -30,8 +30,8 @@ osh update --no-submodules  # skip modules inside nested git repos
 Module lists are printed comma-separated (pasteable into `-u`); `-1` /
 `--per-line` prints one module per line instead.
 
-`--target` and `--compose-file` are forwarded to `osh odoo`, so Docker Compose
-targets work as usual.
+`osh update` runs on the project's active backend (`osh <backend> activate`
+switches it); `--compose-file` is forwarded to `osh odoo`.
 
 ## Behaviour notes
 

@@ -116,7 +116,7 @@ def test_update_detects_changed_module(in_project, module_dir, pg_db, capture_up
         (
             ["my_mod"],
             db_name,
-            {"backend_name": None, "compose_file": None, "dry_run": False},
+            {"compose_file": None, "dry_run": False},
         )
     ]
     stored = _stored_fingerprints(pg_db, db_name)
@@ -219,7 +219,7 @@ def test_update_dry_run_does_not_write(in_project, module_dir, pg_db, capture_up
         (
             ["my_mod"],
             db_name,
-            {"backend_name": None, "compose_file": None, "dry_run": True},
+            {"compose_file": None, "dry_run": True},
         )
     ]
     assert _stored_fingerprints(pg_db, db_name) == {"my_mod": "deadbeef"}
@@ -260,7 +260,7 @@ def test_update_positional_modules_force_update(
         (
             ["my_mod", "other_mod"],
             db_name,
-            {"backend_name": None, "compose_file": None, "dry_run": False},
+            {"compose_file": None, "dry_run": False},
         )
     ]
     stored = _stored_fingerprints(pg_db, db_name)

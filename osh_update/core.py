@@ -122,7 +122,6 @@ def update_and_record(
     db_name,
     targets,
     *,
-    backend_name=None,
     compose_file=None,
     dry_run=False,
     skip_nested=False,
@@ -140,7 +139,6 @@ def update_and_record(
     returncode = run_update(
         targets,
         db_name,
-        backend_name=backend_name,
         compose_file=compose_file,
         dry_run=dry_run,
     )
@@ -155,17 +153,13 @@ def update_and_record(
     echo.success(f"Updated {len(targets)} module(s) in {elapsed:.1f} seconds.")
 
 
-def run_update(
-    modules, db_name, *, backend_name=None, compose_file=None, dry_run=False
-):
+def run_update(modules, db_name, *, compose_file=None, dry_run=False):
     """Run ``osh odoo -u <modules>`` and return the process exit code.
 
     ``osh odoo`` exec's ``odoo-bin``, so the subprocess return code is Odoo's
     own exit code.
     """
     cmd = [sys.executable, "-m", "osh", "odoo"]
-    if backend_name:
-        cmd += ["--target", backend_name]
     if compose_file:
         cmd += ["--compose-file", compose_file]
     if dry_run:
