@@ -1,4 +1,4 @@
-"""Tests for the ``osh update`` command."""
+"""Tests for the ``osh addon update`` command."""
 
 import json
 
@@ -383,8 +383,8 @@ def test_update_status_first_run_baselines(
     """--status with no stored fingerprints records the baseline.
 
     The report lists third-party modules only, but the baseline still
-    covers all installed modules — otherwise a later plain ``osh update``
-    would flag every upstream module as changed.
+    covers all installed modules — otherwise a later plain ``osh addon
+    update`` would flag every upstream module as changed.
     """
     db_name = pg_db.make_odoo_db(
         modules=[("my_mod", "installed"), ("base", "installed")]

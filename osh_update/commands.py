@@ -1,4 +1,4 @@
-"""``osh update`` command implementation.
+"""``osh addon update`` command implementation.
 
 Detects which project modules changed since the last update — using
 fingerprints stored in the target database's ``ir.config_parameter`` — and
@@ -84,11 +84,11 @@ def update(
     Examples:
 
     \b
-      osh update
-      osh update my_module other_module
-      osh update --all
-      osh update --status
-      osh update -d otherdb --dry-run
+      osh addon update
+      osh addon update my_module other_module
+      osh addon update --all
+      osh addon update --status
+      osh addon update -d otherdb --dry-run
 
     Runs on the project's active backend — see ``osh <backend> activate``.
     """

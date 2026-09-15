@@ -1,4 +1,4 @@
-"""Module fingerprinting for ``osh update``.
+"""Module fingerprinting for ``osh addon update``.
 
 Computes a stable SHA-256 digest per project module covering only code and
 data files — the files whose changes require a ``-u`` module update. Static
