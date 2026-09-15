@@ -2,7 +2,7 @@
 
 from click.testing import CliRunner
 
-from osh_uninstall import core
+from osh_uninstall import core, store
 from osh_uninstall.commands import uninstall
 
 
@@ -12,7 +12,8 @@ def _add_dependency(pg_db, db_name, module, depends_on):
         db_name,
         "INSERT INTO ir_module_module_dependency (module_id, name) "
         "VALUES ((SELECT id FROM ir_module_module "
-        f"WHERE name='{module}'), '{depends_on}')",
+        "WHERE name = :'module'), :'depends_on')",
+        {"module": module, "depends_on": depends_on},
     )
 
 
@@ -134,7 +135,8 @@ def test_uninstall_dry_run(in_project, pg_db, capture_uninstall):
     assert capture_uninstall == [(["my_mod"], db_name, {"dry_run": True})]
     state = pg_db.query(
         db_name,
-        "SELECT state FROM ir_module_module WHERE name='my_mod'",
+        "SELECT state FROM ir_module_module WHERE name = :'mod'",
+        {"mod": "my_mod"},
     )
     assert state == "installed"
 
@@ -177,3 +179,31 @@ def test_uninstall_outside_project(monkeypatch, tmp_path):
     result = CliRunner().invoke(uninstall, ["my_mod"])
     assert result.exit_code == 0
     assert "Not inside an Osh project" in result.output
+
+
+def test_removal_set_passes_names_as_psql_variables(in_project, monkeypatch):
+    """Module names travel via ``psql -v`` variables, never in the SQL text."""
+    captured = {}
+
+    def fake_run(ctx, base, args, **kwargs):
+        captured["args"] = args
+        captured["sql"] = kwargs.get("input")
+        return 0, "mod_a\n", ""
+
+    monkeypatch.setattr(store, "run_in_backend", fake_run)
+
+    result = store.get_removal_set(in_project, "db", ["we'ird", "mod_a"])
+
+    assert result == ["mod_a"]
+    assert "we'ird" not in captured["sql"]
+    assert "mod0=we'ird" in captured["args"]
+    assert "mod1=mod_a" in captured["args"]
+
+
+def test_removal_set_with_quoted_name(in_project, pg_db):
+    """A name containing a quote is a no-op lookup, not a syntax error."""
+    db_name = pg_db.make_odoo_db(modules=[("real_mod", "installed")])
+
+    result = store.get_removal_set(in_project, db_name, ["we'ird", "real_mod"])
+
+    assert result == ["real_mod"]
