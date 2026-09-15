@@ -1,4 +1,4 @@
-"""Update orchestration for ``osh update``.
+"""Update orchestration for ``osh addon update``.
 
 Detects which installed project modules changed since the last update and
 runs ``odoo -u`` on them through the public ``osh odoo`` CLI. Kept separate
@@ -90,7 +90,7 @@ def detect_targets(
                 "module(s); no updates run."
             )
             echo.info(
-                "Run 'osh update --all' to force-update installed "
+                "Run 'osh addon update --all' to force-update installed "
                 "third-party modules."
             )
         return None

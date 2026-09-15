@@ -1,4 +1,4 @@
-"""Tests for the ``osh update`` command."""
+"""Tests for the ``osh addon update`` command."""
 
 import json
 
@@ -13,8 +13,8 @@ def _stored_fingerprints(pg_db, db_name):
     """Return the stored fingerprint map from the test database."""
     value = pg_db.query(
         db_name,
-        "SELECT value FROM ir_config_parameter "
-        f"WHERE key = '{store.FINGERPRINT_PARAM}'",
+        "SELECT value FROM ir_config_parameter WHERE key = :'fp_key'",
+        {"fp_key": store.FINGERPRINT_PARAM},
     )
     return json.loads(value) if value else None
 
@@ -23,8 +23,12 @@ def _store_fingerprints(pg_db, db_name, mapping):
     """Write *mapping* as the fingerprint param in the test database."""
     pg_db.psql(
         db_name,
-        "INSERT INTO ir_config_parameter (key, value) VALUES "
-        f"('{store.FINGERPRINT_PARAM}', $${json.dumps(mapping)}$$)",
+        "INSERT INTO ir_config_parameter (key, value) "
+        "VALUES (:'fp_key', :'fp_value')",
+        {
+            "fp_key": store.FINGERPRINT_PARAM,
+            "fp_value": json.dumps(mapping),
+        },
     )
 
 
@@ -180,8 +184,9 @@ def test_update_recovers_corrupt_fingerprint_param(
     module = module_dir("my_mod")
     pg_db.psql(
         db_name,
-        "INSERT INTO ir_config_parameter (key, value) VALUES "
-        f"('{store.FINGERPRINT_PARAM}', 'not-json')",
+        "INSERT INTO ir_config_parameter (key, value) "
+        "VALUES (:'fp_key', 'not-json')",
+        {"fp_key": store.FINGERPRINT_PARAM},
     )
 
     result = CliRunner().invoke(update, ["--db", db_name])
@@ -383,8 +388,8 @@ def test_update_status_first_run_baselines(
     """--status with no stored fingerprints records the baseline.
 
     The report lists third-party modules only, but the baseline still
-    covers all installed modules — otherwise a later plain ``osh update``
-    would flag every upstream module as changed.
+    covers all installed modules — otherwise a later plain ``osh addon
+    update`` would flag every upstream module as changed.
     """
     db_name = pg_db.make_odoo_db(
         modules=[("my_mod", "installed"), ("base", "installed")]
@@ -432,3 +437,32 @@ def test_update_outside_project(monkeypatch, tmp_path):
     result = CliRunner().invoke(update, [])
     assert result.exit_code == 0
     assert "Not inside an Osh project" in result.output
+
+
+def test_write_fingerprints_passes_payload_as_psql_variable(in_project, monkeypatch):
+    """The fingerprint JSON travels via ``psql -v``, never in the SQL text."""
+    captured = {}
+
+    def fake_run(ctx, base, args, **kwargs):
+        captured["args"] = args
+        captured["sql"] = kwargs.get("input")
+        return 0, "", ""
+
+    monkeypatch.setattr(store, "run_in_backend", fake_run)
+
+    mapping = {"we'ird": "deadbeef"}
+    store.write_fingerprints(in_project, "db", mapping)
+
+    payload = json.dumps(mapping, sort_keys=True)
+    assert payload not in captured["sql"]
+    assert f"fp_value={payload}" in captured["args"]
+
+
+def test_fingerprints_roundtrip_special_values(in_project, pg_db):
+    """Keys/values with quotes survive the psql-variable round trip."""
+    db_name = pg_db.make_odoo_db()
+    mapping = {"we'ird": 'dead"beef'}
+
+    store.write_fingerprints(in_project, db_name, mapping)
+
+    assert store.read_fingerprints(in_project, db_name) == mapping

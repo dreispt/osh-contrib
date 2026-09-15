@@ -1,4 +1,4 @@
-"""``osh uninstall`` command implementation.
+"""``osh addon uninstall`` command implementation.
 
 Removes installed modules — and their installed dependents — from a
 database by piping a ``button_immediate_uninstall`` call into
@@ -46,10 +46,10 @@ def uninstall(ctx, modules, db_name, yes, dry_run):  # noqa: D401
     Examples:
 
     \b
-      osh uninstall my_module
-      osh uninstall mod_a,mod_b
-      osh uninstall my_module -d otherdb --yes
-      osh uninstall my_module --dry-run
+      osh addon uninstall my_module
+      osh addon uninstall mod_a,mod_b
+      osh addon uninstall my_module -d otherdb --yes
+      osh addon uninstall my_module --dry-run
     """
     names = sorted({n.strip() for n in modules.split(",") if n.strip()})
     if not names:

@@ -22,9 +22,9 @@ README and tests:
 - [`osh_echohttp`](osh_echohttp/) — prints the browser URL once `osh odoo`
   is ready (`osh odoo --open` also opens it in the browser).
 - [`osh_uninstall`](osh_uninstall/) — uninstalls Odoo modules, and their
-  installed dependents, from a database (`osh uninstall mod_a,mod_b`).
+  installed dependents, from a database (`osh addon uninstall mod_a,mod_b`).
 - [`osh_update`](osh_update/) — detects project modules whose code changed
-  since the last update and runs `odoo -u` on them (`osh update`).
+  since the last update and runs `odoo -u` on them (`osh addon update`).
 
 ## Repository layout
 

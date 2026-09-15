@@ -1,4 +1,4 @@
-"""PostgreSQL-backed state for ``osh update``.
+"""PostgreSQL-backed state for ``osh addon update``.
 
 Module fingerprints are stored in the target database itself as an
 ``ir.config_parameter`` record (``osh.module_fingerprints``, a JSON
@@ -7,6 +7,11 @@ restores. All access goes through ``psql`` run via
 ``osh.db.run_in_backend`` — the same backend-routed execution core uses
 for ``db_exists`` and friends, so Docker-backed projects run ``psql``
 inside the container automatically.
+
+``osh_uninstall`` carries a near-identical ``_psql`` helper: plugins
+cannot import each other when loaded as user plugins, so the duplication
+is deliberate. Keep the two in sync, and prefer moving the helper into
+osh core if a third plugin needs it.
 """
 
 import json
@@ -50,7 +55,8 @@ def read_fingerprints(base, db_name, ctx=None):
     returncode, stdout, _ = _psql(
         base,
         db_name,
-        "SELECT value FROM ir_config_parameter " f"WHERE key = '{FINGERPRINT_PARAM}'",
+        "SELECT value FROM ir_config_parameter WHERE key = :'fp_key'",
+        variables={"fp_key": FINGERPRINT_PARAM},
         ctx=ctx,
     )
     if returncode != 0:
@@ -75,29 +81,59 @@ def read_fingerprints(base, db_name, ctx=None):
 
 def write_fingerprints(base, db_name, mapping, ctx=None):
     """Store *mapping* as the ``osh.module_fingerprints`` config parameter."""
-    payload = json.dumps(mapping, sort_keys=True).replace("'", "''")
     sql = (
         "INSERT INTO ir_config_parameter (key, value) VALUES "
-        f"('{FINGERPRINT_PARAM}', '{payload}') "
+        "(:'fp_key', :'fp_value') "
         "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value"
     )
-    returncode, _, _ = _psql(base, db_name, sql, ctx=ctx)
+    returncode, _, _ = _psql(
+        base,
+        db_name,
+        sql,
+        variables={
+            "fp_key": FINGERPRINT_PARAM,
+            "fp_value": json.dumps(mapping, sort_keys=True),
+        },
+        ctx=ctx,
+    )
     if returncode != 0:
         raise click.ClickException(
             f"Could not store module fingerprints in '{db_name}'."
         )
 
 
-def _psql(base, db_name, sql, *, field_separator=None, ctx=None):
+def _psql(base, db_name, sql, *, field_separator=None, variables=None, ctx=None):
     """Run *sql* via psql and return ``(returncode, stdout, stderr)``.
 
     The SQL is piped through stdin rather than ``-c`` so large statements —
     such as a fingerprint UPSERT covering hundreds of modules — cannot hit
-    the per-argument size limit. ``run_in_backend`` supplies the ``PG*``
-    connection variables from the project Odoo config.
+    the per-argument size limit. It must also go through stdin for the
+    ``:'key'`` references below to work at all: psql interpolates
+    variables only into input read from stdin or a file, never into
+    ``-c``.
+
+    *variables* are passed as ``psql -v key=value`` assignments so the
+    statement can reference them as ``:'key'`` — psql quotes them as SQL
+    literals using the server connection's escaping rules, so no value
+    ever needs manual escaping.
+
+    Trade-off: ``-v`` values land in the ``psql`` argv, which is
+    world-readable via ``/proc/<pid>/cmdline`` while the query runs. That
+    is acceptable here — fingerprints are hashes of the project's own
+    code, and module names already appear in the user's own ``osh``
+    command line. Do not "fix" this with ``\\set`` assignments in the
+    SQL stream: psql meta-command arguments need hand-rolled backslash
+    and quote escaping, reintroducing exactly the bug class ``-v``
+    removes. If a value ever is sensitive, use ``\\getenv`` (psql 14+)
+    with ``run_in_backend(env=...)`` instead.
+
+    ``run_in_backend`` supplies the ``PG*`` connection variables from the
+    project Odoo config.
     """
     # ON_ERROR_STOP makes psql exit non-zero on SQL errors, like -c does.
     args = ["psql", "-d", db_name, "-t", "-A", "-v", "ON_ERROR_STOP=1"]
+    for key, value in (variables or {}).items():
+        args += ["-v", f"{key}={value}"]
     if field_separator:
         args += ["-F", field_separator]
     returncode, stdout, stderr = run_in_backend(ctx, base, args, input=sql)

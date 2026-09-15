@@ -2,7 +2,7 @@
 
 Uninstall Odoo modules from a database.
 
-`osh uninstall` takes a comma-separated list of module technical names —
+`osh addon uninstall` takes a comma-separated list of module technical names —
 the same syntax as Odoo's `-u`/`--update` option — and removes them from
 the target database. Modules that depend on them are uninstalled too:
 the dependency cascade is computed by the ORM itself, via
@@ -12,11 +12,11 @@ the dependency cascade is computed by the ORM itself, via
 ## Usage
 
 ```bash
-osh uninstall my_module             # uninstall, with confirmation
-osh uninstall mod_a,mod_b           # comma-separated module list
-osh uninstall mod_a,mod_b -d mydb   # target a specific database
-osh uninstall my_module --yes       # skip the confirmation prompt
-osh uninstall my_module --dry-run   # show the removal set, don't run
+osh addon uninstall my_module             # uninstall, with confirmation
+osh addon uninstall mod_a,mod_b           # comma-separated module list
+osh addon uninstall mod_a,mod_b -d mydb   # target a specific database
+osh addon uninstall my_module --yes       # skip the confirmation prompt
+osh addon uninstall my_module --dry-run   # show the removal set, don't run
 ```
 
 The execution target — including the Docker Compose file — comes from the
@@ -43,5 +43,8 @@ transparently.
 
 ## Requirements
 
-A `psql` able to reach the target database using the project's configured
-credentials (the same requirement `osh odoo` already has).
+- `osh` >= 0.8, which provides the core `addon` command group this plugin
+  attaches to. On older cores the plugin loads but `osh addon uninstall`
+  never appears — check with `osh addon --help`.
+- A `psql` able to reach the target database using the project's configured
+  credentials (the same requirement `osh odoo` already has).

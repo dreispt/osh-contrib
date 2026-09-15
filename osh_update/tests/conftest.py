@@ -53,8 +53,26 @@ def module_dir(tmp_project):
     return _make
 
 
-def _psql(db_name, sql):
-    subprocess.run(["psql", "-d", db_name, "-c", sql], check=True)
+def _psql_argv(db_name, variables=None, extra=()):
+    """Build a ``psql`` argv, passing *variables* as ``-v key=value``.
+
+    Statements reference them as ``:'key'`` so psql quotes them as SQL
+    literals — the same mechanism the plugin's own store module uses, so
+    test data containing quotes can never break the statement.
+
+    The SQL itself is piped through stdin rather than ``-c``: psql only
+    interpolates variables into input read from stdin or a file.
+    ``ON_ERROR_STOP`` makes it exit non-zero on SQL errors, which ``-c``
+    would do implicitly.
+    """
+    argv = ["psql", "-d", db_name, "-v", "ON_ERROR_STOP=1", *extra]
+    for key, value in (variables or {}).items():
+        argv += ["-v", f"{key}={value}"]
+    return argv
+
+
+def _psql(db_name, sql, variables=None):
+    subprocess.run(_psql_argv(db_name, variables), input=sql, text=True, check=True)
 
 
 @pytest.fixture
@@ -110,18 +128,20 @@ def pg_db():
                 _psql(
                     name,
                     "INSERT INTO ir_module_module (name, state) "
-                    f"VALUES ('{mod_name}', '{state}')",
+                    "VALUES (:'mod', :'state')",
+                    {"mod": mod_name, "state": state},
                 )
             return name
 
-        def psql(self, name, sql):
+        def psql(self, name, sql, variables=None):
             """Run a SQL statement against a tracked database."""
-            _psql(name, sql)
+            _psql(name, sql, variables)
 
-        def query(self, name, sql):
+        def query(self, name, sql, variables=None):
             """Run a query and return stripped stdout."""
             return subprocess.run(
-                ["psql", "-d", name, "-t", "-A", "-c", sql],
+                _psql_argv(name, variables, extra=("-t", "-A")),
+                input=sql,
                 check=True,
                 capture_output=True,
                 text=True,
