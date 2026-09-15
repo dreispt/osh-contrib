@@ -1,4 +1,4 @@
-"""PostgreSQL-backed state for ``osh uninstall``.
+"""PostgreSQL-backed state for ``osh addon uninstall``.
 
 Module states and dependency relations are read directly from the target
 database through ``psql`` run via ``osh.db.run_in_backend`` — the same
