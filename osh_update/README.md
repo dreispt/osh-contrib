@@ -13,6 +13,13 @@ Fingerprints live in the database itself as the `ir.config_parameter` record
 Parameters_), so they follow the database across `osh db copy` and
 `osh db restore`.
 
+On `osh db restore`, the plugin also runs a post-restore hook: when the
+restored dump carries no fingerprint map, the local modules' fingerprints
+are recorded right away so later `osh addon update` runs diff from the
+restore point. Dumps that do carry fingerprints keep them — they describe
+the code the database was last updated against, so real diffs are still
+detected.
+
 ## Usage
 
 ```bash
@@ -38,6 +45,12 @@ activate` switches it); `--compose-file` is forwarded to `osh odoo`.
 - **First run:** no fingerprints stored yet — the command only records a
   baseline and performs no update. Use `osh addon update --all` if the database
   is not actually in sync.
+- **Restores:** a database restored with `osh db restore` gets a baseline
+  recorded automatically when the dump has none (see above); the hook needs
+  osh >= 0.9, which fires `osh_db_get.post_restore` — on older versions it
+  simply never runs. The restore baseline always uses the default scope
+  (nested repos included), since `osh db restore` has no `--no-submodules`
+  flag to forward.
 - **Not installed:** modules not installed in the database are silently
   skipped (`osh addon update` never installs; use `osh odoo -i`).
 - **Missing on disk:** a module that is installed in the database but no
@@ -64,5 +77,7 @@ activate` switches it); `--compose-file` is forwarded to `osh odoo`.
 - `osh` >= 0.8, which provides the core `addon` command group this plugin
   attaches to. On older cores the plugin loads but `osh addon update` never
   appears — check with `osh addon --help`.
+- `osh` >= 0.9 for the post-restore fingerprint hook — optional; on older
+  cores `osh addon update` simply keeps its lazy first-run baseline.
 - A `psql` able to reach the target database using the project's configured
   credentials (the same requirement `osh odoo` already has).
