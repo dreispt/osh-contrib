@@ -4,7 +4,7 @@ import json
 
 from click.testing import CliRunner
 
-from osh_update import store
+from osh_update import core, store
 from osh_update.commands import update
 from osh_update.fingerprint import fingerprint_module
 
@@ -466,3 +466,66 @@ def test_fingerprints_roundtrip_special_values(in_project, pg_db):
     store.write_fingerprints(in_project, db_name, mapping)
 
     assert store.read_fingerprints(in_project, db_name) == mapping
+
+
+# Post-restore hook --------------------------------------------------------
+
+
+def test_post_restore_records_baseline_when_absent(in_project, module_dir, pg_db):
+    """A restored db without fingerprints gets a local baseline."""
+    db_name = pg_db.make_odoo_db(modules=[("my_mod", "installed")])
+    module = module_dir("my_mod")
+    module_dir("not_installed")
+
+    core.post_restore(None, in_project, db_name)
+
+    assert _stored_fingerprints(pg_db, db_name) == {
+        "my_mod": fingerprint_module(module)
+    }
+
+
+def test_post_restore_keeps_carried_fingerprints(in_project, module_dir, pg_db):
+    """Fingerprints carried by the dump are preserved — diffs still work."""
+    db_name = pg_db.make_odoo_db(modules=[("my_mod", "installed")])
+    module_dir("my_mod")
+    _store_fingerprints(pg_db, db_name, {"my_mod": "deadbeef"})
+
+    core.post_restore(None, in_project, db_name)
+
+    assert _stored_fingerprints(pg_db, db_name) == {"my_mod": "deadbeef"}
+
+
+def test_post_restore_skips_uninitialized_db(in_project, pg_db):
+    """A database without ir_module_module gets no write and no error."""
+    db_name = pg_db.create()
+
+    core.post_restore(None, in_project, db_name)
+
+    assert (
+        pg_db.query(
+            db_name,
+            "SELECT 1 FROM information_schema.tables WHERE table_schema = "
+            "'public' AND table_name = 'ir_config_parameter'",
+        )
+        == ""
+    )
+
+
+def test_post_restore_baselines_active_modules_only(in_project, module_dir, pg_db):
+    """The baseline covers installed/to-upgrade modules only."""
+    db_name = pg_db.make_odoo_db(
+        modules=[
+            ("my_mod", "installed"),
+            ("queued_mod", "to install"),
+            ("doomed_mod", "to remove"),
+        ]
+    )
+    module = module_dir("my_mod")
+    module_dir("queued_mod")
+    module_dir("doomed_mod")
+
+    core.post_restore(None, in_project, db_name)
+
+    assert _stored_fingerprints(pg_db, db_name) == {
+        "my_mod": fingerprint_module(module)
+    }

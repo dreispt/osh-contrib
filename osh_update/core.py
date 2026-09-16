@@ -3,7 +3,8 @@
 Detects which installed project modules changed since the last update and
 runs ``odoo -u`` on them through the public ``osh odoo`` CLI. Kept separate
 from the Click command so it can be reused (e.g. by a future ``odoo.pre_env``
-hook) and monkeypatched in tests.
+hook) and monkeypatched in tests. Also hosts the ``osh_db_get.post_restore``
+hook implementation that fingerprints freshly restored databases.
 """
 
 import subprocess
@@ -82,11 +83,10 @@ def detect_targets(
                 "module(s); no updates would run."
             )
         else:
-            store.write_fingerprints(
-                base, db_name, {n: current[n] for n in installed}, ctx=ctx
-            )
+            baseline = _baseline_mapping(current, states)
+            store.write_fingerprints(base, db_name, baseline, ctx=ctx)
             echo.success(
-                f"Recorded baseline fingerprints for {len(installed)} "
+                f"Recorded baseline fingerprints for {len(baseline)} "
                 "module(s); no updates run."
             )
             echo.info(
@@ -104,17 +104,41 @@ def detect_targets(
     return changed
 
 
-def _report_module_list(title, names, *, per_line=False):
-    """Print a titled module list — comma-separated, or one per line."""
-    if not names:
-        echo.info(f"{title}: none")
+def post_restore(ctx, base, db_name):
+    """``osh_db_get.post_restore`` hook: baseline restored dbs lacking one.
+
+    A restored dump keeps the fingerprint map it carried — it describes the
+    code the database was last updated against, so real diffs are still
+    detected by the next ``osh addon update``. Only when the dump has no map
+    at all are the local modules' fingerprints recorded, so subsequent runs
+    diff from the restore point instead of re-baselining lazily.
+
+    The hook signature carries no options, so the baseline always uses the
+    default fingerprint scope — nested repos included, like a plain
+    ``osh addon update``. ``--no-submodules`` only narrows what a later
+    update run compares, never what the restore recorded.
+    """
+    states = store.get_module_states(base, db_name, ctx=ctx)
+    if states is None:
         return
-    echo.info(f"{title} ({len(names)}):")
-    if per_line:
-        for name in names:
-            click.echo(f"  {name}")
-    else:
-        click.echo(",".join(names))
+    if store.read_fingerprints(base, db_name, ctx=ctx) is not None:
+        return
+    baseline = _baseline_mapping(fingerprint_project_modules(base), states)
+    store.write_fingerprints(base, db_name, baseline, ctx=ctx)
+    # Restore output goes to stderr, so this joins it rather than stdout.
+    echo.success(
+        f"Recorded baseline fingerprints for {len(baseline)} module(s).",
+        err=True,
+    )
+
+
+def _baseline_mapping(current, states):
+    """Return the ``{module: digest}`` baseline for modules active in *states*."""
+    return {
+        n: digest
+        for n, digest in current.items()
+        if states.get(n) in store.ACTIVE_STATES
+    }
 
 
 def update_and_record(
@@ -173,3 +197,16 @@ def run_update(modules, db_name, *, compose_file=None, dry_run=False):
         "--no-http",
     ]
     return subprocess.run(cmd).returncode
+
+
+def _report_module_list(title, names, *, per_line=False):
+    """Print a titled module list — comma-separated, or one per line."""
+    if not names:
+        echo.info(f"{title}: none")
+        return
+    echo.info(f"{title} ({len(names)}):")
+    if per_line:
+        for name in names:
+            click.echo(f"  {name}")
+    else:
+        click.echo(",".join(names))
