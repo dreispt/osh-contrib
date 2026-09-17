@@ -17,8 +17,8 @@ def _ctx(params):
     return types.SimpleNamespace(params=params)
 
 
-def _env_spec(config_path=None):
-    return types.SimpleNamespace(config_path=config_path)
+def _env_spec(config_path=None, db_name=None):
+    return types.SimpleNamespace(config_path=config_path, db_name=db_name)
 
 
 # --- resolve_http_port -------------------------------------------------
@@ -33,6 +33,8 @@ def test_resolve_http_port_from_args():
     assert resolve_http_port(("--http-port=8071",)) == 8071
     assert resolve_http_port(("--http-port", "8071")) == 8071
     assert resolve_http_port(("--xmlrpc-port=8072",)) == 8072
+    assert resolve_http_port(("-p", "8073")) == 8073
+    assert resolve_http_port(("-p8074",)) == 8074
 
 
 def test_resolve_http_port_disabled():
@@ -121,6 +123,11 @@ def test_pre_env_hook_respects_port_arg(popen_spy):
     assert popen_spy[0][0][-1] == "8071"
 
 
+def test_pre_env_hook_passes_db_name(popen_spy):
+    pre_env_hook(_ctx(_odoo_params()), None, _env_spec(db_name="mydb"))
+    assert popen_spy[0][0][-2:] == ["8069", "mydb"]
+
+
 def test_pre_env_hook_uses_env_spec_config(popen_spy, tmp_path):
     conf = tmp_path / "odoo.conf"
     conf.write_text("[options]\nhttp_port = 8080\n")
@@ -178,7 +185,15 @@ def test_watch_url_command_prints_url(monkeypatch):
     runner = CliRunner()
     result = runner.invoke(watch_url_command, ["8071"])
     assert result.exit_code == 0
-    assert "Odoo ready: http://localhost:8071" in result.output
+    assert "🚀 Odoo ready: http://localhost:8071" in result.output
+
+
+def test_watch_url_command_prints_db_subdomain(monkeypatch):
+    monkeypatch.setattr("osh_echohttp.watcher.wait_for_port", lambda *a, **k: True)
+    runner = CliRunner()
+    result = runner.invoke(watch_url_command, ["8071", "My_DB"])
+    assert result.exit_code == 0
+    assert "🚀 Odoo ready: http://my-db.localhost:8071" in result.output
 
 
 def test_watch_url_command_opens_browser(monkeypatch):
