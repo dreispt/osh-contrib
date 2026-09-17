@@ -33,6 +33,8 @@ def test_resolve_http_port_from_args():
     assert resolve_http_port(("--http-port=8071",)) == 8071
     assert resolve_http_port(("--http-port", "8071")) == 8071
     assert resolve_http_port(("--xmlrpc-port=8072",)) == 8072
+    assert resolve_http_port(("-p", "8073")) == 8073
+    assert resolve_http_port(("-p8074",)) == 8074
 
 
 def test_resolve_http_port_disabled():

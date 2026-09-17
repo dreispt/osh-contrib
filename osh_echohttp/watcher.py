@@ -20,7 +20,7 @@ import click
 DEFAULT_PORT = 8069
 DEFAULT_TIMEOUT = 120.0
 POLL_INTERVAL = 0.5
-_PORT_ARGS = ("--http-port", "--xmlrpc-port", "--xmlrpc_port")
+_PORT_ARGS = ("--http-port", "--xmlrpc-port", "--xmlrpc_port", "-p")
 _CONFIG_ARGS = ("--config", "-c")
 _NO_SERVER_ARGS = ("--version", "--help", "-h")
 
