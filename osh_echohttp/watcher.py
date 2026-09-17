@@ -9,6 +9,7 @@ with Odoo's own log output) and optionally opens a browser tab.
 
 import configparser
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -42,7 +43,11 @@ def pre_env_hook(ctx, base, env_spec):
         return
     port = resolve_http_port(extra_args, env_spec.config_path)
     if port:
-        spawn_url_watcher(port, open_browser=params.get("open_browser", False))
+        spawn_url_watcher(
+            port,
+            db_name=getattr(env_spec, "db_name", None),
+            open_browser=params.get("open_browser", False),
+        )
 
 
 def resolve_http_port(extra_args, conf_path=None):
@@ -69,7 +74,7 @@ def resolve_http_port(extra_args, conf_path=None):
     return port or None
 
 
-def spawn_url_watcher(port, *, open_browser=False):
+def spawn_url_watcher(port, *, db_name=None, open_browser=False):
     """Spawn a detached ``osh _watch-url`` process for *port*.
 
     The sidecar runs in its own session so it survives the ``exec`` that
@@ -77,6 +82,8 @@ def spawn_url_watcher(port, *, open_browser=False):
     It self-terminates after the ``watch_url`` timeout.
     """
     args = [sys.executable, "-m", "osh", "_watch-url", str(port)]
+    if db_name:
+        args.append(db_name)
     if open_browser:
         args.append("--open")
     return subprocess.Popen(args, stdin=subprocess.DEVNULL, start_new_session=True)
@@ -96,7 +103,7 @@ def wait_for_port(
     return False
 
 
-def watch_url(port, *, open_browser=False):
+def watch_url(port, *, db_name=None, open_browser=False):
     """Poll *port* until Odoo is ready, print the URL, maybe open a browser.
 
     Returns the process exit code: 0 when the port became ready, 1 on
@@ -110,11 +117,21 @@ def watch_url(port, *, open_browser=False):
         timeout = DEFAULT_TIMEOUT
     if not wait_for_port(port, timeout=timeout):
         return 1
-    url = f"http://localhost:{port}"
-    click.echo(f"\nOdoo ready: {url}", err=True)
+    subdomain = _db_subdomain(db_name)
+    host = f"{subdomain}.localhost" if subdomain else "localhost"
+    url = f"http://{host}:{port}"
+    click.echo(f"\n\n🚀 Odoo ready: {url}\n", err=True)
     if open_browser:
         webbrowser.open(url)
     return 0
+
+
+def _db_subdomain(db_name):
+    """Return *db_name* as a DNS-safe ``localhost`` subdomain, or None."""
+    if not db_name:
+        return None
+    slug = re.sub(r"[^a-z0-9-]+", "-", str(db_name).lower()).strip("-")
+    return slug or None
 
 
 def _arg_value(args, names):
