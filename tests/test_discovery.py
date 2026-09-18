@@ -41,7 +41,7 @@ def _as_list(value):
 def _manifest_items(manifest, key):
     """Normalize a manifest entry into a flat list of items."""
     items = manifest.get(key)
-    if key in ("hooks", "group_commands"):
+    if key == "group_commands":
         return [x for impl in (items or {}).values() for x in _as_list(impl)]
     return _as_list(items or [])
 
@@ -87,8 +87,10 @@ def test_discovery_surfaces_manifests(tmp_path, monkeypatch):
         for pairs in plugin_loader.load_group_commands().values()
         for src, c in pairs
     }
-    hooks = {
-        _item_key(h) for impls in plugin_loader.load_hooks().values() for h in impls
+    extensions = {
+        _item_key(e)
+        for impls in plugin_loader.load_extensions().values()
+        for e in impls
     }
     backends = set(plugin_loader.load_backends())
 
@@ -101,7 +103,9 @@ def test_discovery_surfaces_manifests(tmp_path, monkeypatch):
             assert (source, cmd.name) in commands
         for cmd in _manifest_items(manifest, "group_commands"):
             assert (source, cmd.name) in groups
-        for hook in _manifest_items(manifest, "hooks"):
-            assert _item_key(hook) in hooks
         for backend in _manifest_items(manifest, "backends"):
             assert backend.name in backends
+        for attr in vars(loaded[source]).values():
+            # Marked extension classes must surface in the aggregated output.
+            if getattr(attr, "_extends", None):
+                assert _item_key(attr) in extensions

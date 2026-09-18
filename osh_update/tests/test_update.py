@@ -1,8 +1,13 @@
 """Tests for the ``osh addon update`` command."""
 
 import json
+from unittest import mock
 
 from click.testing import CliRunner
+from osh.operations import Env
+from osh.plugins.osh_db_get.restore_cmd import (  # noqa: F401 — registers db.restore
+    restore,
+)
 
 from osh_update import core, store
 from osh_update.commands import update
@@ -468,7 +473,17 @@ def test_fingerprints_roundtrip_special_values(in_project, pg_db):
     assert store.read_fingerprints(in_project, db_name) == mapping
 
 
-# Post-restore hook --------------------------------------------------------
+# Post-restore extension ---------------------------------------------------
+
+
+def _restore_op(in_project, db_name):
+    """A ``db.restore`` instance with ``RestoreBaseline`` composed in."""
+    entries = [("osh-update", "db.restore", core.RestoreBaseline)]
+    with mock.patch("osh.operations._iter_extension_entries", return_value=entries):
+        op = Env(None)["db.restore"]
+    op.base = in_project
+    op.db_name = db_name
+    return op
 
 
 def test_post_restore_records_baseline_when_absent(in_project, module_dir, pg_db):
@@ -477,7 +492,7 @@ def test_post_restore_records_baseline_when_absent(in_project, module_dir, pg_db
     module = module_dir("my_mod")
     module_dir("not_installed")
 
-    core.post_restore(None, in_project, db_name)
+    _restore_op(in_project, db_name).post_restore()
 
     assert _stored_fingerprints(pg_db, db_name) == {
         "my_mod": fingerprint_module(module)
@@ -490,7 +505,7 @@ def test_post_restore_keeps_carried_fingerprints(in_project, module_dir, pg_db):
     module_dir("my_mod")
     _store_fingerprints(pg_db, db_name, {"my_mod": "deadbeef"})
 
-    core.post_restore(None, in_project, db_name)
+    _restore_op(in_project, db_name).post_restore()
 
     assert _stored_fingerprints(pg_db, db_name) == {"my_mod": "deadbeef"}
 
@@ -499,7 +514,7 @@ def test_post_restore_skips_uninitialized_db(in_project, pg_db):
     """A database without ir_module_module gets no write and no error."""
     db_name = pg_db.create()
 
-    core.post_restore(None, in_project, db_name)
+    _restore_op(in_project, db_name).post_restore()
 
     assert (
         pg_db.query(
@@ -524,7 +539,7 @@ def test_post_restore_baselines_active_modules_only(in_project, module_dir, pg_d
     module_dir("queued_mod")
     module_dir("doomed_mod")
 
-    core.post_restore(None, in_project, db_name)
+    _restore_op(in_project, db_name).post_restore()
 
     assert _stored_fingerprints(pg_db, db_name) == {
         "my_mod": fingerprint_module(module)
