@@ -46,9 +46,9 @@ activate` switches it); `--compose-file` is forwarded to `osh odoo`.
   baseline and performs no update. Use `osh addon update --all` if the database
   is not actually in sync.
 - **Restores:** a database restored with `osh db restore` gets a baseline
-  recorded automatically when the dump has none (see above); the hook needs
-  osh >= 0.9, which fires `osh_db_get.post_restore` — on older versions it
-  simply never runs. The restore baseline always uses the default scope
+  recorded automatically when the dump has none (see above); the
+  `db.restore` extension needs osh >= 1.0 — on older versions it simply
+  never runs. The restore baseline always uses the default scope
   (nested repos included), since `osh db restore` has no `--no-submodules`
   flag to forward.
 - **Not installed:** modules not installed in the database are silently

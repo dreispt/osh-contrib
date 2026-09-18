@@ -22,15 +22,14 @@ failed boots.
 - Skipped automatically for `--dry-run`, Odoo subcommands (`shell`,
   `neutralize`, ...), `--no-http` and `--version`/`--help`.
 
-Requires an `osh` core that supports the `hooks` plugin manifest key.
+Requires an `osh` core with operation extensions (osh >= 1.0).
 
 ## How it works
 
-- `OSH_PLUGIN_MANIFEST["hooks"]["odoo.options"]` injects `--open` and
-  `--url-watch/--no-url-watch` into `osh odoo` at parse time.
-- `OSH_PLUGIN_MANIFEST["hooks"]["odoo.pre_env"]` runs `pre_env_hook` right
-  before `Backend.env()` execs — it resolves the port and spawns the
-  sidecar.
+- `@extends("odoo")` mixin `UrlWatch` injects `--open` and
+  `--url-watch/--no-url-watch` into `osh odoo` at parse time
+  (`get_options`) and runs `pre_env` right before `Backend.env()` execs —
+  it resolves the port and spawns the sidecar.
 - `OSH_PLUGIN_MANIFEST["commands"]` declares the hidden `osh _watch-url`
   command the sidecar runs.
 

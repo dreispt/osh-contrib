@@ -53,12 +53,13 @@ There is no registration step: adding a plugin is just adding a directory.
    OSH_PLUGIN_MANIFEST = {
        "commands": [hello],          # click.Command objects
        "backends": [MyBackend],      # Backend subclasses
-       "backup_sources": [MySource], # BackupSource subclasses
-       "hooks": {"odoo.pre_env": []},# hook point implementations
    }
    ```
 
-   All keys are optional.
+   All keys are optional — declare an empty manifest for a plugin that
+   only extends operations. Operation extensions are declared on the
+   classes themselves via `@extends("op.name")`, and `BackupSource`
+   subclasses are discovered automatically — see the plugin guide.
 
 3. Add a `README.md` documenting the plugin and a `tests/` package with
    its tests.
