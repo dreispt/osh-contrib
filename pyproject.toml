@@ -44,8 +44,13 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 include = ["osh_*"]
 
+[tool.setuptools.package-data]
+"*" = ["osh-plugin.toml"]
+
 # Register plugins for pip installs as well:
 [project.entry-points."osh.plugins"]
+osh_echohttp = "osh_echohttp"
+osh_uninstall = "osh_uninstall"
 osh_update = "osh_update"
 
 [tool.black]
