@@ -13,7 +13,7 @@ import time
 
 import click
 from osh import echo
-from osh.operations import extends
+from osh.handlers import resolve
 
 from . import store
 from .fingerprint import (
@@ -105,8 +105,7 @@ def detect_targets(
     return changed
 
 
-@extends("db.restore")
-class RestoreBaseline:
+class RestoreBaseline(resolve("db.restore")):
     """Extends ``osh db restore`` — baseline restored dbs lacking one.
 
     A restored dump keeps the fingerprint map it carried — it describes the

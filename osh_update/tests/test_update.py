@@ -1,13 +1,9 @@
 """Tests for the ``osh addon update`` command."""
 
 import json
-from unittest import mock
 
 from click.testing import CliRunner
-from osh.operations import Env
-from osh.plugins.osh_db_get.restore_cmd import (  # noqa: F401 — registers db.restore
-    restore,
-)
+from osh.handlers import Env
 
 from osh_update import core, store
 from osh_update.commands import update
@@ -477,10 +473,8 @@ def test_fingerprints_roundtrip_special_values(in_project, pg_db):
 
 
 def _restore_op(in_project, db_name):
-    """A ``db.restore`` instance with ``RestoreBaseline`` composed in."""
-    entries = [("osh-update", "db.restore", core.RestoreBaseline)]
-    with mock.patch("osh.operations._iter_extension_entries", return_value=entries):
-        op = Env(None)["db.restore"]
+    """A ``db.restore`` handler with ``RestoreBaseline`` composed in."""
+    op = core.RestoreBaseline(Env(None))
     op.base = in_project
     op.db_name = db_name
     return op

@@ -1,0 +1,5 @@
+description = "Update project modules whose code changed since the last update."
+extends = ["db.restore"]
+
+[group_commands.addon]
+update = "Update project modules whose code changed."

@@ -10,14 +10,9 @@ Also extends ``osh db restore``: when a restore brings in a dump without
 stored fingerprints, a local baseline is recorded right away so later
 ``osh addon update`` runs diff from the restore point.
 
-Requires osh >= 0.8, which provides the ``addon`` command group this
-plugin attaches to. On an older core the plugin still loads but the
-command never appears; check with ``osh addon --help``.
+The plugin's surface is declared in ``osh-plugin.toml``, so the module is
+imported lazily — only when ``osh addon update`` or ``osh db restore`` runs.
 """
 
-from .commands import update
-from .core import RestoreBaseline  # noqa: F401 — registers the db.restore extension
-
-OSH_PLUGIN_MANIFEST = {
-    "group_commands": {"addon": [update]},
-}
+from .commands import AddonUpdate  # noqa: F401 — re-exported for discovery
+from .core import RestoreBaseline  # noqa: F401 — re-exported for extension discovery
