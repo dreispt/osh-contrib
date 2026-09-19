@@ -4,21 +4,23 @@ import socket
 import subprocess
 import sys
 import types
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from osh.commands.odoo_cmd import OdooRun
+from osh.handlers import Env
 
-from osh_echohttp.commands import watch_url_command
-from osh_echohttp.watcher import pre_env_hook, resolve_http_port, wait_for_port
-
-
-def _ctx(params):
-    """Return a fake click Context carrying the given parsed params."""
-    return types.SimpleNamespace(params=params)
+from osh_echohttp.commands import echohttp
+from osh_echohttp.watcher import UrlWatch, resolve_http_port, wait_for_port
 
 
-def _env_spec(config_path=None, db_name=None):
-    return types.SimpleNamespace(config_path=config_path, db_name=db_name)
+def _odoo_op(params, env_spec=None):
+    """Return the ``odoo`` handler extended by UrlWatch, ready for pre_env."""
+    ctx = types.SimpleNamespace(params=params)
+    op = UrlWatch(Env(ctx), **params)
+    op.env_spec = env_spec or types.SimpleNamespace(config_path=None, db_name=None)
+    return op
 
 
 # --- resolve_http_port -------------------------------------------------
@@ -72,7 +74,7 @@ def test_resolve_http_port_arg_beats_config(tmp_path):
     assert resolve_http_port(("--http-port=8071",), conf) == 8071
 
 
-# --- pre_env_hook ------------------------------------------------------
+# --- UrlWatch.pre_env --------------------------------------------------
 
 
 @pytest.fixture
@@ -99,39 +101,39 @@ def _odoo_params(**overrides):
     return params
 
 
-def test_pre_env_hook_spawns_watcher(popen_spy):
-    pre_env_hook(_ctx(_odoo_params()), None, _env_spec())
+def _env_spec(config_path=None, db_name=None):
+    return types.SimpleNamespace(config_path=config_path, db_name=db_name)
+
+
+def test_pre_env_spawns_watcher(popen_spy):
+    _odoo_op(_odoo_params()).pre_env()
 
     assert len(popen_spy) == 1
     args, kwargs = popen_spy[0]
-    assert args == [sys.executable, "-m", "osh", "_watch-url", "8069"]
+    assert args == [sys.executable, "-m", "osh", "echohttp", "8069"]
     assert kwargs["start_new_session"] is True
     assert kwargs["stdin"] is subprocess.DEVNULL
 
 
-def test_pre_env_hook_open_appends_flag(popen_spy):
-    pre_env_hook(_ctx(_odoo_params(open_browser=True)), None, _env_spec())
+def test_pre_env_open_appends_flag(popen_spy):
+    _odoo_op(_odoo_params(open_browser=True)).pre_env()
     assert popen_spy[0][0][-1] == "--open"
 
 
-def test_pre_env_hook_respects_port_arg(popen_spy):
-    pre_env_hook(
-        _ctx(_odoo_params(extra_args=("--http-port=8071",))),
-        None,
-        _env_spec(),
-    )
+def test_pre_env_respects_port_arg(popen_spy):
+    _odoo_op(_odoo_params(extra_args=("--http-port=8071",))).pre_env()
     assert popen_spy[0][0][-1] == "8071"
 
 
-def test_pre_env_hook_passes_db_name(popen_spy):
-    pre_env_hook(_ctx(_odoo_params()), None, _env_spec(db_name="mydb"))
+def test_pre_env_passes_db_name(popen_spy):
+    _odoo_op(_odoo_params(), _env_spec(db_name="mydb")).pre_env()
     assert popen_spy[0][0][-2:] == ["8069", "mydb"]
 
 
-def test_pre_env_hook_uses_env_spec_config(popen_spy, tmp_path):
+def test_pre_env_uses_env_spec_config(popen_spy, tmp_path):
     conf = tmp_path / "odoo.conf"
     conf.write_text("[options]\nhttp_port = 8080\n")
-    pre_env_hook(_ctx(_odoo_params()), None, _env_spec(config_path=str(conf)))
+    _odoo_op(_odoo_params(), _env_spec(config_path=str(conf))).pre_env()
     assert popen_spy[0][0][-1] == "8080"
 
 
@@ -154,8 +156,8 @@ def test_pre_env_hook_uses_env_spec_config(popen_spy, tmp_path):
         "no_http",
     ],
 )
-def test_pre_env_hook_skips(popen_spy, params):
-    pre_env_hook(_ctx(params), None, _env_spec())
+def test_pre_env_skips(popen_spy, params):
+    _odoo_op(params).pre_env()
     assert popen_spy == []
 
 
@@ -177,65 +179,72 @@ def test_wait_for_port_times_out_on_closed_port():
     assert wait_for_port(closed_port, timeout=0.3, interval=0.05) is False
 
 
-# --- _watch-url command ------------------------------------------------
+# --- ``osh echohttp`` sidecar command ----------------------------------
 
 
-def test_watch_url_command_prints_url(monkeypatch):
+def test_echohttp_command_prints_url(monkeypatch):
     monkeypatch.setattr("osh_echohttp.watcher.wait_for_port", lambda *a, **k: True)
-    runner = CliRunner()
-    result = runner.invoke(watch_url_command, ["8071"])
+    result = CliRunner().invoke(echohttp, ["8071"])
     assert result.exit_code == 0
     assert "🚀 Odoo ready: http://localhost:8071" in result.output
 
 
-def test_watch_url_command_prints_db_subdomain(monkeypatch):
+def test_echohttp_command_prints_db_subdomain(monkeypatch):
     monkeypatch.setattr("osh_echohttp.watcher.wait_for_port", lambda *a, **k: True)
-    runner = CliRunner()
-    result = runner.invoke(watch_url_command, ["8071", "My_DB"])
+    result = CliRunner().invoke(echohttp, ["8071", "My_DB"])
     assert result.exit_code == 0
     assert "🚀 Odoo ready: http://my-db.localhost:8071" in result.output
 
 
-def test_watch_url_command_opens_browser(monkeypatch):
+def test_echohttp_command_opens_browser(monkeypatch):
     opened = []
     monkeypatch.setattr("osh_echohttp.watcher.wait_for_port", lambda *a, **k: True)
     monkeypatch.setattr(
         "osh_echohttp.watcher.webbrowser.open", lambda url: opened.append(url)
     )
-    runner = CliRunner()
-    result = runner.invoke(watch_url_command, ["8071", "--open"])
+    result = CliRunner().invoke(echohttp, ["8071", "--open"])
     assert result.exit_code == 0
     assert opened == ["http://localhost:8071"]
 
 
-def test_watch_url_command_times_out_silently(monkeypatch):
+def test_echohttp_command_times_out_silently(monkeypatch):
     monkeypatch.setattr("osh_echohttp.watcher.wait_for_port", lambda *a, **k: False)
-    runner = CliRunner()
-    result = runner.invoke(watch_url_command, ["8071"])
+    result = CliRunner().invoke(echohttp, ["8071"])
     assert result.exit_code == 1
     assert "Odoo ready" not in result.output
 
 
-def test_watch_url_command_honours_timeout_env(monkeypatch):
+def test_echohttp_command_honours_timeout_env(monkeypatch):
     """``OSH_URL_WATCH_TIMEOUT`` bounds the real polling loop."""
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         closed_port = probe.getsockname()[1]
     monkeypatch.setenv("OSH_URL_WATCH_TIMEOUT", "0.2")
-    runner = CliRunner()
-    result = runner.invoke(watch_url_command, [str(closed_port)])
+    result = CliRunner().invoke(echohttp, [str(closed_port)])
     assert result.exit_code == 1
 
 
-# --- manifest ----------------------------------------------------------
+# --- plugin metadata ---------------------------------------------------
 
 
-def test_manifest_declares_hooks_and_command():
-    from osh_echohttp import OSH_PLUGIN_MANIFEST
+def test_plugin_metadata():
+    """``osh-plugin.toml`` declares the ``odoo`` extension and the hidden
+    ``echohttp`` sidecar command."""
+    from osh.utils.plugin_registry import plugin_meta
 
-    hooks = OSH_PLUGIN_MANIFEST["hooks"]
-    assert set(hooks) == {"odoo.options", "odoo.pre_env"}
-    assert len(hooks["odoo.options"]) == 2
-    assert hooks["odoo.pre_env"] == [pre_env_hook]
-    assert watch_url_command in OSH_PLUGIN_MANIFEST["commands"]
-    assert watch_url_command.hidden is True
+    import osh_echohttp
+    from osh_echohttp.commands import EchoHttp
+
+    meta = plugin_meta(Path(osh_echohttp.__file__).parent)
+    assert meta["extends"] == ["odoo"]
+    assert meta["commands"]["echohttp"]["hidden"] is True
+    assert issubclass(UrlWatch, OdooRun)
+    assert "_cli_name" not in UrlWatch.__dict__  # extension, not a command
+    assert echohttp.hidden is True
+    assert EchoHttp._cli_name == "echohttp"
+
+
+def test_url_watch_get_options():
+    """The extension contributes ``--open`` and ``--url-watch`` options."""
+    params = {p.name: p for p in UrlWatch.get_options()}
+    assert {"open_browser", "url_watch"} <= params.keys()

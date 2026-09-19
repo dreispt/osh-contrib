@@ -1,0 +1,5 @@
+description = "Print the browser URL once `osh odoo` is ready to serve."
+extends = ["odoo"]
+
+[commands]
+echohttp = { hidden = true, help = "Print the Odoo URL once the server is ready." }

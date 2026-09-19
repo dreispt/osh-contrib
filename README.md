@@ -16,8 +16,8 @@ Then restart `osh` so the new commands are loaded.
 
 ## Plugins
 
-Each `osh_*` directory is a self-contained plugin with its own manifest,
-README and tests:
+Each `osh_*` directory is a self-contained plugin with its own
+`osh-plugin.toml` declaration, README and tests:
 
 - [`osh_echohttp`](osh_echohttp/) — prints the browser URL once `osh odoo`
   is ready (`osh odoo --open` also opens it in the browser).
@@ -29,13 +29,14 @@ README and tests:
 ## Repository layout
 
 Similar to an Odoo addons repo, the repository root is a bare directory —
-each plugin directory is self-contained and `osh` loads every subpackage
-declaring `OSH_PLUGIN_MANIFEST` automatically:
+each plugin directory is self-contained and `osh` discovers every subpackage
+marked with an `osh-plugin.toml` file automatically:
 
 ```
 osh-contrib/
 └── osh_example/
-    ├── __init__.py        # declares OSH_PLUGIN_MANIFEST = {...}
+    ├── osh-plugin.toml    # declares the plugin's commands and extensions
+    ├── __init__.py        # re-exports the plugin's classes
     ├── README.md          # plugin documentation
     ├── ...                # plugin code
     └── tests/             # plugin tests
@@ -46,19 +47,21 @@ There is no registration step: adding a plugin is just adding a directory.
 ## Adding a plugin
 
 1. Create a package `osh_<name>/` at the repository root.
-2. In its `__init__.py`, declare `OSH_PLUGIN_MANIFEST` as described in the
+2. Declare the plugin's surface in `osh-plugin.toml`, as described in the
    core [plugin guide](https://github.com/dreispt/osh/blob/master/PLUGINS.md):
 
-   ```python
-   OSH_PLUGIN_MANIFEST = {
-       "commands": [hello],          # click.Command objects
-       "backends": [MyBackend],      # Backend subclasses
-       "backup_sources": [MySource], # BackupSource subclasses
-       "hooks": {"odoo.pre_env": []},# hook point implementations
-   }
+   ```toml
+   description = "What the plugin does."
+   extends = ["db.list"]          # handlers the plugin extends (optional)
+
+   [commands]                     # top-level commands (optional)
+   hello = "Say hello."
    ```
 
-   All keys are optional.
+   Commands are `CommandHandler` subclasses named by `_cli_name`;
+   handler extensions are plain subclasses of the target handler, and
+   `Backend`/`BackupSource` subclasses are discovered automatically —
+   see the plugin guide.
 
 3. Add a `README.md` documenting the plugin and a `tests/` package with
    its tests.

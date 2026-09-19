@@ -1,10 +1,10 @@
 """Odoo URL watcher for the ``osh odoo`` command.
 
-``osh odoo`` hands off to Odoo via ``exec``, so this module's ``pre_env_hook``
-spawns a detached ``osh _watch-url`` sidecar process right before the handoff.
-The sidecar polls the Odoo HTTP port and, once the server accepts TCP
-connections, prints the browser URL on the inherited terminal (interleaved
-with Odoo's own log output) and optionally opens a browser tab.
+``osh odoo`` hands off to Odoo via ``exec``, so the ``UrlWatch`` extension's
+``pre_env`` spawns a detached ``osh echohttp`` sidecar process right
+before the handoff. The sidecar polls the Odoo HTTP port and, once the server
+accepts TCP connections, prints the browser URL on the inherited terminal
+(interleaved with Odoo's own log output) and optionally opens a browser tab.
 """
 
 import configparser
@@ -17,6 +17,7 @@ import time
 import webbrowser
 
 import click
+from osh.commands.odoo_cmd import OdooRun
 
 DEFAULT_PORT = 8069
 DEFAULT_TIMEOUT = 120.0
@@ -26,28 +27,55 @@ _CONFIG_ARGS = ("--config", "-c")
 _NO_SERVER_ARGS = ("--version", "--help", "-h")
 
 
-def pre_env_hook(ctx, base, env_spec):
-    """Spawn the URL watcher sidecar for plain ``osh odoo`` server runs.
+class UrlWatch(OdooRun):
+    """Extends ``osh odoo`` — spawn the URL watcher for plain server runs.
 
-    Registered under the ``odoo.pre_env`` hook point. Skips dry runs,
-    explicitly disabled runs (``--no-url-watch``/``OSH_URL_WATCH=0``), Odoo
-    subcommands such as ``shell``, and invocations that never start the HTTP
-    server (``--version``, ``--help``, ``--no-http``, ``http_port = 0``).
+    Adds ``--open`` and ``--url-watch/--no-url-watch`` options through
+    ``get_options`` and spawns the detached sidecar in ``pre_env``. Skips
+    dry runs, explicitly disabled runs (``--no-url-watch``/
+    ``OSH_URL_WATCH=0``), Odoo subcommands such as ``shell``, and
+    invocations that never start the HTTP server (``--version``,
+    ``--help``, ``--no-http``, ``http_port = 0``).
+
+    The sidecar is the hidden ``osh echohttp`` command declared by this
+    plugin (see ``commands.py``).
     """
-    params = ctx.params
-    extra_args = params.get("extra_args") or ()
-    if params.get("dry_run") or not params.get("url_watch", True):
-        return
-    has_subcommand = extra_args and not extra_args[0].startswith("-")
-    if has_subcommand or any(a in extra_args for a in _NO_SERVER_ARGS):
-        return
-    port = resolve_http_port(extra_args, env_spec.config_path)
-    if port:
-        spawn_url_watcher(
-            port,
-            db_name=getattr(env_spec, "db_name", None),
-            open_browser=params.get("open_browser", False),
-        )
+
+    url_watch = True
+    open_browser = False
+
+    @classmethod
+    def get_options(cls):
+        return [
+            *super().get_options(),
+            click.Option(
+                ["--open", "open_browser"],
+                is_flag=True,
+                help="Open the Odoo URL in the browser once the server is ready.",
+            ),
+            click.Option(
+                ["--url-watch/--no-url-watch"],
+                default=True,
+                envvar="OSH_URL_WATCH",
+                help="Print the browser URL once Odoo is ready (default: on; "
+                "OSH_URL_WATCH=0 disables).",
+            ),
+        ]
+
+    def pre_env(self):
+        super().pre_env()
+        extra_args = self.extra_args or ()
+        if self.dry_run or not self.url_watch:
+            return
+        if self.has_subcommand or any(a in extra_args for a in _NO_SERVER_ARGS):
+            return
+        port = resolve_http_port(extra_args, self.env_spec.config_path)
+        if port:
+            spawn_url_watcher(
+                port,
+                db_name=getattr(self.env_spec, "db_name", None),
+                open_browser=self.open_browser,
+            )
 
 
 def resolve_http_port(extra_args, conf_path=None):
@@ -75,13 +103,13 @@ def resolve_http_port(extra_args, conf_path=None):
 
 
 def spawn_url_watcher(port, *, db_name=None, open_browser=False):
-    """Spawn a detached ``osh _watch-url`` process for *port*.
+    """Spawn a detached ``osh echohttp`` process for *port*.
 
     The sidecar runs in its own session so it survives the ``exec`` that
     replaces this process with Odoo, and keeps writing to the same terminal.
     It self-terminates after the ``watch_url`` timeout.
     """
-    args = [sys.executable, "-m", "osh", "_watch-url", str(port)]
+    args = [sys.executable, "-m", "osh", "echohttp", str(port)]
     if db_name:
         args.append(db_name)
     if open_browser:

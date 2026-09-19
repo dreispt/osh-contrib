@@ -2,9 +2,9 @@
 
 Detects which installed project modules changed since the last update and
 runs ``odoo -u`` on them through the public ``osh odoo`` CLI. Kept separate
-from the Click command so it can be reused (e.g. by a future ``odoo.pre_env``
-hook) and monkeypatched in tests. Also hosts the ``osh_db_get.post_restore``
-hook implementation that fingerprints freshly restored databases.
+from the Click command so it can be reused and monkeypatched in tests.
+Also hosts the ``db.restore`` ``post_restore`` extension that fingerprints
+freshly restored databases.
 """
 
 import subprocess
@@ -13,6 +13,7 @@ import time
 
 import click
 from osh import echo
+from osh.handlers import resolve
 
 from . import store
 from .fingerprint import (
@@ -104,8 +105,8 @@ def detect_targets(
     return changed
 
 
-def post_restore(ctx, base, db_name):
-    """``osh_db_get.post_restore`` hook: baseline restored dbs lacking one.
+class RestoreBaseline(resolve("db.restore")):
+    """Extends ``osh db restore`` — baseline restored dbs lacking one.
 
     A restored dump keeps the fingerprint map it carried — it describes the
     code the database was last updated against, so real diffs are still
@@ -113,23 +114,26 @@ def post_restore(ctx, base, db_name):
     at all are the local modules' fingerprints recorded, so subsequent runs
     diff from the restore point instead of re-baselining lazily.
 
-    The hook signature carries no options, so the baseline always uses the
-    default fingerprint scope — nested repos included, like a plain
+    The extension signature carries no options, so the baseline always uses
+    the default fingerprint scope — nested repos included, like a plain
     ``osh addon update``. ``--no-submodules`` only narrows what a later
     update run compares, never what the restore recorded.
     """
-    states = store.get_module_states(base, db_name, ctx=ctx)
-    if states is None:
-        return
-    if store.read_fingerprints(base, db_name, ctx=ctx) is not None:
-        return
-    baseline = _baseline_mapping(fingerprint_project_modules(base), states)
-    store.write_fingerprints(base, db_name, baseline, ctx=ctx)
-    # Restore output goes to stderr, so this joins it rather than stdout.
-    echo.success(
-        f"Recorded baseline fingerprints for {len(baseline)} module(s).",
-        err=True,
-    )
+
+    def post_restore(self):
+        super().post_restore()
+        states = store.get_module_states(self.base, self.db_name, ctx=self.ctx)
+        if states is None:
+            return
+        if store.read_fingerprints(self.base, self.db_name, ctx=self.ctx) is not None:
+            return
+        baseline = _baseline_mapping(fingerprint_project_modules(self.base), states)
+        store.write_fingerprints(self.base, self.db_name, baseline, ctx=self.ctx)
+        # Restore output goes to stderr, so this joins it rather than stdout.
+        echo.success(
+            f"Recorded baseline fingerprints for {len(baseline)} module(s).",
+            err=True,
+        )
 
 
 def _baseline_mapping(current, states):

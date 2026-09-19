@@ -8,11 +8,8 @@ be removed, asks for confirmation, and performs the removal by piping a
 are re-checked afterwards so a silently swallowed failure never reports
 success.
 
-Requires osh >= 0.8, which provides the ``addon`` command group this
-plugin attaches to. On an older core the plugin still loads but the
-command never appears; check with ``osh addon --help``.
+The command is declared in ``osh-plugin.toml``, so the module is imported
+lazily — only when ``osh addon uninstall`` actually runs.
 """
 
-from .commands import uninstall
-
-OSH_PLUGIN_MANIFEST = {"group_commands": {"addon": [uninstall]}}
+from .commands import AddonUninstall  # noqa: F401 — re-exported for discovery
