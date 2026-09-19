@@ -1,0 +1,4 @@
+description = "Uninstall Odoo modules — and their dependents — from a database."
+
+[group_commands.addon]
+uninstall = "Uninstall Odoo modules from a database."
