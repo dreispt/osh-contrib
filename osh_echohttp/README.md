@@ -8,8 +8,8 @@ osh odoo --open    # also opens the URL in your browser
 ```
 
 Since `osh odoo` replaces itself with the Odoo process (`exec`), the plugin
-spawns a detached `osh _watch-url` sidecar that TCP-polls the HTTP port and
-writes to the same terminal — the line interleaves with Odoo's own log
+spawns a detached `osh echohttp` sidecar that TCP-polls the HTTP port
+and writes to the same terminal — the line interleaves with Odoo's own log
 output, so it is printed with an emoji and surrounding blank lines to stand
 out. The port is resolved from `-p`/`--http-port`/`--xmlrpc-port` arguments,
 then the effective Odoo config, defaulting to 8069; the database name becomes
@@ -22,23 +22,26 @@ failed boots.
 - Skipped automatically for `--dry-run`, Odoo subcommands (`shell`,
   `neutralize`, ...), `--no-http` and `--version`/`--help`.
 
-Requires an `osh` core with operation extensions (osh >= 1.0).
+Requires `osh` >= 1.0 (handler subclassing via `osh.handlers`).
 
 ## How it works
 
-- `@extends("odoo")` mixin `UrlWatch` injects `--open` and
-  `--url-watch/--no-url-watch` into `osh odoo` at parse time
-  (`get_options`) and runs `pre_env` right before `Backend.env()` execs —
-  it resolves the port and spawns the sidecar.
-- `OSH_PLUGIN_MANIFEST["commands"]` declares the hidden `osh _watch-url`
-  command the sidecar runs.
+- `UrlWatch` subclasses the `odoo` handler (`OdooRun`) and is declared via
+  `extends = ["odoo"]` in `osh-plugin.toml` — the plugin imports lazily,
+  only when `osh odoo` actually runs. It injects `--open` and
+  `--url-watch/--no-url-watch` at parse time (`get_options`) and runs
+  `pre_env` right before `Backend.env()` execs — it resolves the port and
+  spawns the sidecar.
+- The sidecar is the hidden `osh echohttp PORT [DBNAME]` command — declared
+  with `hidden = true` in `osh-plugin.toml`, so it never shows in `--help`.
 
 ## Layout
 
 ```
 osh_echohttp/
-├── __init__.py   # OSH_PLUGIN_MANIFEST (commands + hooks)
-├── commands.py   # hidden `osh _watch-url` command
-├── watcher.py    # port resolution, TCP polling, sidecar spawn
+├── osh-plugin.toml  # description + extends = ["odoo"] + hidden [commands]
+├── __init__.py      # re-exports UrlWatch and EchoHttp for discovery
+├── commands.py      # hidden `osh echohttp` sidecar command
+├── watcher.py       # UrlWatch handler, port resolution, TCP polling
 └── tests/
 ```

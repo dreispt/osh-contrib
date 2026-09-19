@@ -1,8 +1,8 @@
 """Odoo URL watcher for the ``osh odoo`` command.
 
 ``osh odoo`` hands off to Odoo via ``exec``, so the ``UrlWatch`` extension's
-``pre_env`` spawns a detached ``osh _watch-url`` sidecar process right before
-the handoff. The sidecar polls the Odoo HTTP port and, once the server
+``pre_env`` spawns a detached ``osh echohttp`` sidecar process right
+before the handoff. The sidecar polls the Odoo HTTP port and, once the server
 accepts TCP connections, prints the browser URL on the inherited terminal
 (interleaved with Odoo's own log output) and optionally opens a browser tab.
 """
@@ -17,7 +17,7 @@ import time
 import webbrowser
 
 import click
-from osh.operations import extends
+from osh.commands.odoo_cmd import OdooRun
 
 DEFAULT_PORT = 8069
 DEFAULT_TIMEOUT = 120.0
@@ -27,8 +27,7 @@ _CONFIG_ARGS = ("--config", "-c")
 _NO_SERVER_ARGS = ("--version", "--help", "-h")
 
 
-@extends("odoo")
-class UrlWatch:
+class UrlWatch(OdooRun):
     """Extends ``osh odoo`` — spawn the URL watcher for plain server runs.
 
     Adds ``--open`` and ``--url-watch/--no-url-watch`` options through
@@ -37,6 +36,9 @@ class UrlWatch:
     ``OSH_URL_WATCH=0``), Odoo subcommands such as ``shell``, and
     invocations that never start the HTTP server (``--version``,
     ``--help``, ``--no-http``, ``http_port = 0``).
+
+    The sidecar is the hidden ``osh echohttp`` command declared by this
+    plugin (see ``commands.py``).
     """
 
     url_watch = True
@@ -101,13 +103,13 @@ def resolve_http_port(extra_args, conf_path=None):
 
 
 def spawn_url_watcher(port, *, db_name=None, open_browser=False):
-    """Spawn a detached ``osh _watch-url`` process for *port*.
+    """Spawn a detached ``osh echohttp`` process for *port*.
 
     The sidecar runs in its own session so it survives the ``exec`` that
     replaces this process with Odoo, and keeps writing to the same terminal.
     It self-terminates after the ``watch_url`` timeout.
     """
-    args = [sys.executable, "-m", "osh", "_watch-url", str(port)]
+    args = [sys.executable, "-m", "osh", "echohttp", str(port)]
     if db_name:
         args.append(db_name)
     if open_browser:
