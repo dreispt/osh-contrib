@@ -43,8 +43,9 @@ transparently.
 
 ## Requirements
 
-- `osh` >= 0.8, which provides the core `addon` command group this plugin
-  attaches to. On older cores the plugin loads but `osh addon uninstall`
-  never appears — check with `osh addon --help`.
+- `osh` >= 1.0 (lazy plugin discovery via `osh-plugin.toml` and handler
+  subclassing through `osh.handlers`). The command is declared under
+  `[group_commands.addon]` in `osh-plugin.toml`, so the module imports
+  only when `osh addon uninstall` actually runs.
 - A `psql` able to reach the target database using the project's configured
   credentials (the same requirement `osh odoo` already has).
