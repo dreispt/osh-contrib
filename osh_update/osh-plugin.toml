@@ -1,4 +1,6 @@
 description = "Update project modules whose code changed since the last update."
+version = "0.1.0"
+min_osh = "1.1"
 extends = ["db.restore"]
 
 [group_commands.addon]

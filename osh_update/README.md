@@ -47,7 +47,7 @@ activate` switches it); `--compose-file` is forwarded to `osh odoo`.
   is not actually in sync.
 - **Restores:** a database restored with `osh db restore` gets a baseline
   recorded automatically when the dump has none (see above); the
-  `db.restore` extension needs osh >= 1.0 — the plugin requires it anyway. The restore baseline always uses the default scope
+  `db.restore` extension needs osh >= 1.1 — the plugin requires it anyway. The restore baseline always uses the default scope
   (nested repos included), since `osh db restore` has no `--no-submodules`
   flag to forward.
 - **Not installed:** modules not installed in the database are silently
@@ -73,7 +73,7 @@ activate` switches it); `--compose-file` is forwarded to `osh odoo`.
 
 ## Requirements
 
-- `osh` >= 1.0 (lazy plugin discovery via `osh-plugin.toml` and handler
+- `osh` >= 1.1 (lazy plugin discovery via `osh-plugin.toml` and handler
   subclassing through `osh.handlers`). The command is declared under
   `[group_commands.addon]` and the post-restore hook via
   `extends = ["db.restore"]`, so the module imports only when

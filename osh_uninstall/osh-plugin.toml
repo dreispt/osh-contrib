@@ -1,4 +1,6 @@
 description = "Uninstall Odoo modules — and their dependents — from a database."
+version = "0.1.0"
+min_osh = "1.1"
 
 [group_commands.addon]
 uninstall = "Uninstall Odoo modules from a database."
