@@ -23,19 +23,14 @@ class EchoHttp(CommandHandler):
     dbname = None
     open_browser = False
 
-    @classmethod
-    def get_options(cls):
-        return [
-            *super().get_options(),
-            click.Argument(["port"], type=int),
-            click.Argument(["dbname"], required=False),
-            click.Option(
-                ["--open", "open_browser"],
-                is_flag=True,
-                help="Open the URL in the default browser once ready.",
-            ),
-        ]
-
+    @click.argument("port", type=int)
+    @click.argument("dbname", required=False)
+    @click.option(
+        "--open",
+        "open_browser",
+        is_flag=True,
+        help="Open the URL in the default browser once ready.",
+    )
     def run(self):
         raise SystemExit(
             watch_url(self.port, db_name=self.dbname, open_browser=self.open_browser)

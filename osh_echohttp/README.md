@@ -22,14 +22,15 @@ failed boots.
 - Skipped automatically for `--dry-run`, Odoo subcommands (`shell`,
   `neutralize`, ...), `--no-http` and `--version`/`--help`.
 
-Requires `osh` >= 1.0 (handler subclassing via `osh.handlers`).
+Requires `osh` >= 1.1 (handler subclassing via `osh.handlers`, params as
+`run()` decorators).
 
 ## How it works
 
 - `UrlWatch` subclasses the `odoo` handler (`OdooRun`) and is declared via
   `extends = ["odoo"]` in `osh-plugin.toml` — the plugin imports lazily,
   only when `osh odoo` actually runs. It injects `--open` and
-  `--url-watch/--no-url-watch` at parse time (`get_options`) and runs
+  `--url-watch/--no-url-watch` at parse time (decorators on `run()`) and runs
   `pre_env` right before `Backend.env()` execs — it resolves the port and
   spawns the sidecar.
 - The sidecar is the hidden `osh echohttp PORT [DBNAME]` command — declared

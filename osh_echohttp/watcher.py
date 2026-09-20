@@ -30,8 +30,9 @@ _NO_SERVER_ARGS = ("--version", "--help", "-h")
 class UrlWatch(OdooRun):
     """Extends ``osh odoo`` — spawn the URL watcher for plain server runs.
 
-    Adds ``--open`` and ``--url-watch/--no-url-watch`` options through
-    ``get_options`` and spawns the detached sidecar in ``pre_env``. Skips
+    Adds ``--open`` and ``--url-watch/--no-url-watch`` options — stacked
+    on ``run()`` so ``get_options`` picks them up across the MRO — and
+    spawns the detached sidecar in ``pre_env``. Skips
     dry runs, explicitly disabled runs (``--no-url-watch``/
     ``OSH_URL_WATCH=0``), Odoo subcommands such as ``shell``, and
     invocations that never start the HTTP server (``--version``,
@@ -44,23 +45,22 @@ class UrlWatch(OdooRun):
     url_watch = True
     open_browser = False
 
-    @classmethod
-    def get_options(cls):
-        return [
-            *super().get_options(),
-            click.Option(
-                ["--open", "open_browser"],
-                is_flag=True,
-                help="Open the Odoo URL in the browser once the server is ready.",
-            ),
-            click.Option(
-                ["--url-watch/--no-url-watch"],
-                default=True,
-                envvar="OSH_URL_WATCH",
-                help="Print the browser URL once Odoo is ready (default: on; "
-                "OSH_URL_WATCH=0 disables).",
-            ),
-        ]
+    @click.option(
+        "--open",
+        "open_browser",
+        is_flag=True,
+        help="Open the Odoo URL in the browser once the server is ready.",
+    )
+    @click.option(
+        "--url-watch/--no-url-watch",
+        default=True,
+        envvar="OSH_URL_WATCH",
+        help="Print the browser URL once Odoo is ready (default: on; "
+        "OSH_URL_WATCH=0 disables).",
+    )
+    def run(self):
+        # The override exists only to carry the option declarations.
+        super().run()
 
     def pre_env(self):
         super().pre_env()

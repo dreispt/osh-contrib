@@ -1,4 +1,6 @@
 description = "Print the browser URL once `osh odoo` is ready to serve."
+version = "0.1.0"
+min_osh = "1.1"
 extends = ["odoo"]
 
 [commands]
