@@ -49,54 +49,53 @@ class AddonUpdate(CommandHandler):
     status = False
     per_line = False
 
-    @classmethod
-    def get_options(cls):
-        return [
-            *super().get_options(),
-            click.Argument(["modules"], nargs=-1),
-            click.Option(
-                ["-d", "--db", "db_name"],
-                help="Database to update " "(default: the resolved branch database).",
-            ),
-            click.Option(
-                ["--all", "update_all"],
-                is_flag=True,
-                help="Update all installed third-party modules (excluding the "
-                "odoo/enterprise/design-themes source trees), ignoring "
-                "fingerprints. With --status, widens the report to include "
-                "upstream modules.",
-            ),
-            click.Option(
-                ["--dry-run"],
-                is_flag=True,
-                help="Show the diff and the odoo -u command without executing it.",
-            ),
-            click.Option(
-                ["--compose-file"],
-                default=None,
-                envvar="OSH_COMPOSE_FILE",
-                help="Docker Compose file to use (e.g. devel.yaml for Doodba).",
-            ),
-            click.Option(
-                ["--no-submodules", "skip_nested"],
-                is_flag=True,
-                help="Skip modules inside nested git repositories "
-                "(e.g. odoo/enterprise source checkouts).",
-            ),
-            click.Option(
-                ["--status"],
-                is_flag=True,
-                help="Report installed modules and those needing an update; "
-                "records the fingerprint baseline on first run. "
-                "Never runs odoo -u.",
-            ),
-            click.Option(
-                ["-1", "--per-line"],
-                is_flag=True,
-                help="Print module lists one per line instead of comma-separated.",
-            ),
-        ]
-
+    @click.argument("modules", nargs=-1)
+    @click.option(
+        "-d",
+        "--db",
+        "db_name",
+        help="Database to update " "(default: the resolved branch database).",
+    )
+    @click.option(
+        "--all",
+        "update_all",
+        is_flag=True,
+        help="Update all installed third-party modules (excluding the "
+        "odoo/enterprise/design-themes source trees), ignoring "
+        "fingerprints. With --status, widens the report to include "
+        "upstream modules.",
+    )
+    @click.option(
+        "--dry-run",
+        is_flag=True,
+        help="Show the diff and the odoo -u command without executing it.",
+    )
+    @click.option(
+        "--compose-file",
+        default=None,
+        envvar="OSH_COMPOSE_FILE",
+        help="Docker Compose file to use (e.g. devel.yaml for Doodba).",
+    )
+    @click.option(
+        "--no-submodules",
+        "skip_nested",
+        is_flag=True,
+        help="Skip modules inside nested git repositories "
+        "(e.g. odoo/enterprise source checkouts).",
+    )
+    @click.option(
+        "--status",
+        is_flag=True,
+        help="Report installed modules and those needing an update; "
+        "records the fingerprint baseline on first run. "
+        "Never runs odoo -u.",
+    )
+    @click.option(
+        "-1",
+        "--per-line",
+        is_flag=True,
+        help="Print module lists one per line instead of comma-separated.",
+    )
     def run(self):
         if self.status and self.modules:
             raise click.ClickException("--status can't be combined with module names.")
