@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from osh.handlers import resolve
 from osh.utils import plugin_loader
-from osh.utils.plugin_registry import plugin_meta, plugin_registry
+from osh.utils.plugin_registry import plugin_meta, plugin_registry, plugin_source_name
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -51,7 +51,7 @@ def test_discovery_registers_lazy_specs(repo_plugins):
     """Each package registers a lazy spec — discovery imports nothing."""
     specs = plugin_registry().specs
     for pkg in _repo_plugin_packages():
-        source = plugin_loader.plugin_source_name(pkg)
+        source = plugin_source_name(pkg)
         spec = specs.get(source)
         assert spec is not None, f"{pkg} was not discovered"
         assert spec.lazy
@@ -69,7 +69,7 @@ def test_declared_commands_surface(repo_plugins):
         for src, c in pairs
     }
     for pkg, path in _repo_plugin_packages().items():
-        source = plugin_loader.plugin_source_name(pkg)
+        source = plugin_source_name(pkg)
         meta = plugin_meta(path)
         for name in meta.get("commands") or {}:
             assert (source, name) in top
@@ -82,7 +82,7 @@ def test_declared_commands_resolve(repo_plugins):
     """Resolving a declared command imports its plugin and finds it."""
     specs = plugin_registry().specs
     for pkg, path in _repo_plugin_packages().items():
-        source = plugin_loader.plugin_source_name(pkg)
+        source = plugin_source_name(pkg)
         spec = specs[source]
         meta = plugin_meta(path)
         for name in meta.get("commands") or {}:
@@ -102,7 +102,7 @@ def test_declared_extensions_are_subclasses(repo_plugins):
         targets = meta.get("extends") or []
         if not targets:
             continue
-        module = specs[plugin_loader.plugin_source_name(pkg)].load()
+        module = specs[plugin_source_name(pkg)].load()
         for target in targets:
             base = resolve(target)
             extensions = [
