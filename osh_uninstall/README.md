@@ -43,7 +43,7 @@ transparently.
 
 ## Requirements
 
-- `osh` >= 1.0 (lazy plugin discovery via `osh-plugin.toml` and handler
+- `osh` >= 1.1 (lazy plugin discovery via `osh-plugin.toml` and handler
   subclassing through `osh.handlers`). The command is declared under
   `[group_commands.addon]` in `osh-plugin.toml`, so the module imports
   only when `osh addon uninstall` actually runs.

@@ -42,29 +42,23 @@ class AddonUninstall(CommandHandler):
     yes = False
     dry_run = False
 
-    @classmethod
-    def get_options(cls):
-        return [
-            *super().get_options(),
-            click.Argument(["modules"]),
-            click.Option(
-                ["-d", "--db", "db_name"],
-                help="Database to uninstall from "
-                "(default: the resolved branch database).",
-            ),
-            click.Option(
-                ["--yes"],
-                is_flag=True,
-                help="Do not ask for confirmation before uninstalling.",
-            ),
-            click.Option(
-                ["--dry-run"],
-                is_flag=True,
-                help="Show the removal set and the odoo shell command "
-                "without executing it.",
-            ),
-        ]
-
+    @click.argument("modules")
+    @click.option(
+        "-d",
+        "--db",
+        "db_name",
+        help="Database to uninstall from " "(default: the resolved branch database).",
+    )
+    @click.option(
+        "--yes",
+        is_flag=True,
+        help="Do not ask for confirmation before uninstalling.",
+    )
+    @click.option(
+        "--dry-run",
+        is_flag=True,
+        help="Show the removal set and the odoo shell command " "without executing it.",
+    )
     def run(self):
         names = sorted({n.strip() for n in self.modules.split(",") if n.strip()})
         if not names:
