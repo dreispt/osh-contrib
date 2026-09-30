@@ -1,0 +1,6 @@
+description = "Collect OCA migration scripts across version branches."
+version = "0.1.0"
+min_osh = "1.1"
+
+[commands]
+collect-migrations = "Gather module migrations/ scripts across version branches."

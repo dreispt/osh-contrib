@@ -6,6 +6,12 @@ out of core or contributed by the community.
 
 ## Installation
 
+Ensure `osh` is installed on your system — the quickest way is `pipx`:
+
+```bash
+pipx install git+https://github.com/dreispt/osh.git
+```
+
 Install the whole collection as a single `osh-contrib` plugin:
 
 ```bash
@@ -21,6 +27,8 @@ Each `osh_*` directory is a self-contained plugin with its own
 
 - [`osh_echohttp`](osh_echohttp/) — prints the browser URL once `osh odoo`
   is ready (`osh odoo --open` also opens it in the browser).
+- [`osh_migrations`](osh_migrations/) — collects module `migrations/`
+  scripts across OCA version branches (`osh collect-migrations`).
 - [`osh_uninstall`](osh_uninstall/) — uninstalls Odoo modules, and their
   installed dependents, from a database (`osh addon uninstall mod_a,mod_b`).
 - [`osh_update`](osh_update/) — detects project modules whose code changed
