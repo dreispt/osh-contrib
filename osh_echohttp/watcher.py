@@ -22,6 +22,7 @@ from osh.commands.odoo_cmd import OdooRun
 DEFAULT_PORT = 8069
 DEFAULT_TIMEOUT = 120.0
 POLL_INTERVAL = 0.5
+READY_DELAY = 2.0
 _PORT_ARGS = ("--http-port", "--xmlrpc-port", "--xmlrpc_port", "-p")
 _CONFIG_ARGS = ("--config", "-c")
 _NO_SERVER_ARGS = ("--version", "--help", "-h")
@@ -107,7 +108,8 @@ def spawn_url_watcher(port, *, db_name=None, open_browser=False):
 
     The sidecar runs in its own session so it survives the ``exec`` that
     replaces this process with Odoo, and keeps writing to the same terminal.
-    It self-terminates after the ``watch_url`` timeout.
+    It self-terminates after the ``watch_url`` timeout or as soon as the
+    spawning run exits.
     """
     args = [sys.executable, "-m", "osh", "echohttp", str(port)]
     if db_name:
@@ -118,11 +120,26 @@ def spawn_url_watcher(port, *, db_name=None, open_browser=False):
 
 
 def wait_for_port(
-    port, *, host="127.0.0.1", timeout=DEFAULT_TIMEOUT, interval=POLL_INTERVAL
+    port,
+    *,
+    host="127.0.0.1",
+    timeout=DEFAULT_TIMEOUT,
+    interval=POLL_INTERVAL,
+    parent_pid=None,
 ):
-    """Poll until *host:port* accepts a TCP connection; return success."""
+    """Poll until *host:port* accepts a TCP connection; return success.
+
+    When *parent_pid* is given, stop polling as soon as the spawning
+    process is gone: the sidecar is detached, so it is reparented the
+    moment its ``osh odoo`` run exits, and a watcher whose run is over
+    must never report on a later server bound to the same port. (On
+    Windows the parent PID does not change on orphaning — the timeout
+    remains the bound there.)
+    """
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
+        if parent_pid is not None and os.getppid() != parent_pid:
+            return False
         try:
             with socket.create_connection((host, port), timeout=1):
                 return True
@@ -135,20 +152,29 @@ def watch_url(port, *, db_name=None, open_browser=False):
     """Poll *port* until Odoo is ready, print the URL, maybe open a browser.
 
     Returns the process exit code: 0 when the port became ready, 1 on
-    timeout (silent — Odoo's own logs already report boot failures). The
-    timeout defaults to ``DEFAULT_TIMEOUT`` seconds and can be overridden
-    with the ``OSH_URL_WATCH_TIMEOUT`` environment variable.
+    timeout or when the spawning process is gone (silent — Odoo's own
+    logs already report boot failures). Once the port accepts
+    connections, the echo is held back for ``READY_DELAY`` seconds so
+    Odoo's own "HTTP service running" log lines land first. The timeout
+    defaults to ``DEFAULT_TIMEOUT`` seconds and can be overridden with
+    the ``OSH_URL_WATCH_TIMEOUT`` environment variable.
     """
     try:
         timeout = float(os.environ.get("OSH_URL_WATCH_TIMEOUT", DEFAULT_TIMEOUT))
     except ValueError:
         timeout = DEFAULT_TIMEOUT
-    if not wait_for_port(port, timeout=timeout):
+    # The sidecar's parent is the `osh` process that execs Odoo — same
+    # PID before and after the exec. If it is gone, this watcher is a
+    # leftover from a previous run and must stay silent.
+    if not wait_for_port(port, timeout=timeout, parent_pid=os.getppid()):
         return 1
+    # Odoo accepts connections just before logging that the HTTP service
+    # is running — let those lines land before printing the URL.
+    time.sleep(READY_DELAY)
     subdomain = _db_subdomain(db_name)
     host = f"{subdomain}.localhost" if subdomain else "localhost"
     url = f"http://{host}:{port}"
-    click.echo(f"\n\n🚀 Odoo ready: {url}\n", err=True)
+    click.echo(f"\n🚀 Odoo ready: {url}", err=True)
     if open_browser:
         webbrowser.open(url)
     return 0

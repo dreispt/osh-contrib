@@ -10,12 +10,13 @@ osh odoo --open    # also opens the URL in your browser
 Since `osh odoo` replaces itself with the Odoo process (`exec`), the plugin
 spawns a detached `osh echohttp` sidecar that TCP-polls the HTTP port
 and writes to the same terminal — the line interleaves with Odoo's own log
-output, so it is printed with an emoji and surrounding blank lines to stand
-out. The port is resolved from `-p`/`--http-port`/`--xmlrpc-port` arguments,
+output, so it is printed with an emoji to stand out, after a 2-second
+settle delay that lets Odoo's "HTTP service running" lines land first.
+The port is resolved from `-p`/`--http-port`/`--xmlrpc-port` arguments,
 then the effective Odoo config, defaulting to 8069; the database name becomes
 a `localhost` subdomain (`mydb.localhost`, handy with a `%d` dbfilter). The
-watcher exits silently after a 2-minute timeout so it never lingers on
-failed boots.
+watcher exits silently when its spawning run is gone, or after a 2-minute
+timeout, so it never lingers past failed boots.
 
 - `--no-url-watch` or `OSH_URL_WATCH=0` — disable the watcher.
 - `OSH_URL_WATCH_TIMEOUT=<seconds>` — override the 120 s timeout.
