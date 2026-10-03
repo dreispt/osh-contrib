@@ -19,6 +19,8 @@ Then restart `osh` so the new commands are loaded.
 Each `osh_*` directory is a self-contained plugin with its own
 `osh-plugin.toml` declaration, README and tests:
 
+- [`osh_dbstats`](osh_dbstats/) — database diagnostic dashboard and vacuum
+  maintenance (`osh db stats`, `osh db vacuum`).
 - [`osh_echohttp`](osh_echohttp/) — prints the browser URL once `osh odoo`
   is ready (`osh odoo --open` also opens it in the browser).
 - [`osh_uninstall`](osh_uninstall/) — uninstalls Odoo modules, and their
