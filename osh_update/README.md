@@ -11,9 +11,9 @@ then updated with `odoo -u`.
 Fingerprints live in the database itself as the `ir.config_parameter` record
 `osh.module_fingerprints` (visible under _Settings → Technical → System
 Parameters_), so they follow the database across `osh db copy` and
-`osh db restore`.
+`osh backup restore`.
 
-On `osh db restore`, the plugin also runs a post-restore hook: when the
+On `osh backup restore`, the plugin also runs a post-restore hook: when the
 restored dump carries no fingerprint map, the local modules' fingerprints
 are recorded right away so later `osh addon update` runs diff from the
 restore point. Dumps that do carry fingerprints keep them — they describe
@@ -45,10 +45,10 @@ activate` switches it); `--compose-file` is forwarded to `osh odoo`.
 - **First run:** no fingerprints stored yet — the command only records a
   baseline and performs no update. Use `osh addon update --all` if the database
   is not actually in sync.
-- **Restores:** a database restored with `osh db restore` gets a baseline
+- **Restores:** a database restored with `osh backup restore` gets a baseline
   recorded automatically when the dump has none (see above); the
-  `db.restore` extension needs osh >= 1.1 — the plugin requires it anyway. The restore baseline always uses the default scope
-  (nested repos included), since `osh db restore` has no `--no-submodules`
+  `backup.restore` extension needs osh >= 1.3 — the plugin requires it anyway. The restore baseline always uses the default scope
+  (nested repos included), since `osh backup restore` has no `--no-submodules`
   flag to forward.
 - **Not installed:** modules not installed in the database are silently
   skipped (`osh addon update` never installs; use `osh odoo -i`).
@@ -76,7 +76,7 @@ activate` switches it); `--compose-file` is forwarded to `osh odoo`.
 - `osh` >= 1.1 (lazy plugin discovery via `osh-plugin.toml` and handler
   subclassing through `osh.handlers`). The command is declared under
   `[group_commands.addon]` and the post-restore hook via
-  `extends = ["db.restore"]`, so the module imports only when
-  `osh addon update` or `osh db restore` actually runs.
+  `extends = ["backup.restore"]`, so the module imports only when
+  `osh addon update` or `osh backup restore` actually runs.
 - A `psql` able to reach the target database using the project's configured
   credentials (the same requirement `osh odoo` already has).
