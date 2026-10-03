@@ -473,7 +473,7 @@ def test_fingerprints_roundtrip_special_values(in_project, pg_db):
 
 
 def _restore_op(in_project, db_name):
-    """A ``db.restore`` handler with ``RestoreBaseline`` composed in."""
+    """A ``backup.restore`` handler with ``RestoreBaseline`` composed in."""
     op = core.RestoreBaseline(Env(None))
     op.base = in_project
     op.db_name = db_name

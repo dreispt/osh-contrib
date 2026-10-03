@@ -1,7 +1,7 @@
 description = "Update project modules whose code changed since the last update."
-version = "0.1.0"
-min_osh = "1.1"
-extends = ["db.restore"]
+version = "0.1.1"
+min_osh = "1.3"
+extends = ["backup.restore"]
 
 [group_commands.addon]
 update = "Update project modules whose code changed."
