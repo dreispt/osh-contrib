@@ -1,3 +1,0 @@
-[group_commands.db]
-stats = "Diagnose an Odoo database: size, bloat, indexes, activity."
-vacuum = "Run VACUUM ANALYZE on the database or selected tables."

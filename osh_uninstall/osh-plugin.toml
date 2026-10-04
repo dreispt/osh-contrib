@@ -1,2 +1,0 @@
-[group_commands.addon]
-uninstall = "Uninstall Odoo modules from a database."

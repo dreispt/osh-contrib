@@ -1,4 +1,0 @@
-extends = ["backup.restore"]
-
-[group_commands.addon]
-update = "Update project modules whose code changed."

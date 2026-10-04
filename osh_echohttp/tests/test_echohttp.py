@@ -264,14 +264,19 @@ def test_echohttp_command_honours_timeout_env(monkeypatch):
 
 
 def test_plugin_metadata():
-    """``osh-plugin.toml`` declares the ``odoo`` extension and the hidden
+    """``[tool.osh]`` declares the ``odoo`` extension and the hidden
     ``echohttp`` sidecar command."""
-    from osh.utils.plugin_registry import plugin_meta
+    from osh.config import tomllib
 
     import osh_echohttp
     from osh_echohttp.commands import EchoHttp
 
-    meta = plugin_meta(Path(osh_echohttp.__file__).parent)
+    data = tomllib.loads(
+        (Path(osh_echohttp.__file__).parent / "pyproject.toml").read_text(
+            encoding="utf-8"
+        )
+    )
+    meta = data["tool"]["osh"]
     assert meta["extends"] == ["odoo"]
     assert meta["commands"]["echohttp"]["hidden"] is True
     assert issubclass(UrlWatch, OdooRun)

@@ -15,7 +15,7 @@ requires-python = ">=3.10"
 keywords = ["odoo", "cli", "shell", "development", "osh"]
 dependencies = [
     "click>=8.1",
-    "osh>=1.1",
+    "osh>=1.7.0",
 ]
 
 [project.optional-dependencies]
@@ -26,9 +26,17 @@ tests = [
 [project.entry-points."osh.plugins"]
 osh_echohttp = "osh_echohttp"
 
+[tool.osh]
+extends = ["odoo"]
+
+[tool.osh.commands]
+echohttp = { hidden = true, help = "Print the Odoo URL once the server is ready." }
+
 [tool.setuptools]
 package-dir = {"osh_echohttp" = "."}
 packages = ["osh_echohttp"]
 
+# Ship pyproject.toml inside the package — osh reads [tool.osh] from it
+# without importing the plugin.
 [tool.setuptools.package-data]
-osh_echohttp = ["osh-plugin.toml"]
+osh_echohttp = ["pyproject.toml"]

@@ -5,9 +5,10 @@
 # granular installs. Do NOT install the bundle together with individual
 # plugin dists — they ship the same packages and collide.
 #
-# `osh` is deliberately not a declared dependency: this dist is installed
-# to *create* environments, and the `osh` name on PyPI resolves to an
-# unrelated package. Install osh first, then this.
+# `osh` 1.7.0+ is required for the [tool.osh] reader in each plugin's
+# pyproject.toml. The `osh` name on PyPI resolves to an unrelated package,
+# so install osh (from source/git) before or alongside this dist — never
+# let the resolver fetch `osh` from PyPI.
 [project]
 name = "osh-contrib"
 version = "0.1.0"
@@ -36,6 +37,7 @@ classifiers = [
 ]
 dependencies = [
     "click>=8.1",
+    "osh>=1.7.0",
 ]
 
 [project.optional-dependencies]
@@ -54,8 +56,10 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 include = ["osh_*"]
 
+# Ship each plugin's pyproject.toml inside its package — osh reads the
+# plugin's [tool.osh] declarations from it without importing the plugin.
 [tool.setuptools.package-data]
-"*" = ["osh-plugin.toml", "pyproject.toml"]
+"*" = ["pyproject.toml"]
 
 # Register all bundled plugins on the `osh.plugins` entry-point group.
 [project.entry-points."osh.plugins"]

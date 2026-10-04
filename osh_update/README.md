@@ -47,7 +47,7 @@ activate` switches it); `--compose-file` is forwarded to `osh odoo`.
   is not actually in sync.
 - **Restores:** a database restored with `osh backup restore` gets a baseline
   recorded automatically when the dump has none (see above); the
-  `backup.restore` extension needs osh >= 1.3 — the plugin requires it anyway. The restore baseline always uses the default scope
+  `backup.restore` extension needs osh >= 1.7 — the plugin requires it anyway. The restore baseline always uses the default scope
   (nested repos included), since `osh backup restore` has no `--no-submodules`
   flag to forward.
 - **Not installed:** modules not installed in the database are silently
@@ -73,10 +73,11 @@ activate` switches it); `--compose-file` is forwarded to `osh odoo`.
 
 ## Requirements
 
-- `osh` >= 1.1 (lazy plugin discovery via `osh-plugin.toml` and handler
-  subclassing through `osh.handlers`). The command is declared under
-  `[group_commands.addon]` and the post-restore hook via
-  `extends = ["backup.restore"]`, so the module imports only when
-  `osh addon update` or `osh backup restore` actually runs.
+- `osh` >= 1.7 (lazy plugin discovery and handler subclassing through
+  `osh.handlers`). The command is declared under
+  `[tool.osh.group_commands.addon]` and the post-restore hook via
+  `extends = ["backup.restore"]` in `pyproject.toml`, so the module
+  imports only when `osh addon update` or `osh backup restore` actually
+  runs.
 - A `psql` able to reach the target database using the project's configured
   credentials (the same requirement `osh odoo` already has).

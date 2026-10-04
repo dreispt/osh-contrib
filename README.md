@@ -59,24 +59,10 @@ pip install "osh-dbstats @ git+https://github.com/dreispt/osh-contrib.git#subdir
 uv tool install osh --with "osh-dbstats @ git+https://github.com/dreispt/osh-contrib.git#subdirectory=osh_dbstats"
 ```
 
-### Legacy: `osh plug install`
-
-The pre-packaging installer still works — it clones the repo into
-`~/.config/osh/plugins/`:
-
-```bash
-osh plug install https://github.com/dreispt/osh-contrib
-```
-
-It is being phased out. Never combine it with a package install of the
-same plugin — plugins registered through both paths report
-duplicate-registration warnings on every `osh` run
-(`osh plug uninstall osh-contrib` removes the legacy one).
-
 ## Plugins
 
-Each `osh_*` directory is a self-contained plugin with its own
-`osh-plugin.toml` declaration, README and tests:
+Each `osh_*` directory is a self-contained plugin declaring its surface
+under `[tool.osh]` in its `pyproject.toml`, with its own README and tests:
 
 - [`osh_dbstats`](osh_dbstats/) — database diagnostic dashboard and vacuum
   maintenance (`osh db stats`, `osh db vacuum`).
@@ -98,8 +84,7 @@ and each is also an installable distribution (`pipx inject osh
 ```
 osh-contrib/
 └── osh_example/
-    ├── pyproject.toml     # the plugin's distribution (osh.plugins entry point)
-    ├── osh-plugin.toml    # declares the plugin's commands and extensions
+    ├── pyproject.toml     # distribution + [tool.osh] plugin declarations
     ├── __init__.py        # re-exports the plugin's classes
     ├── README.md          # plugin documentation
     ├── ...                # plugin code
@@ -117,13 +102,15 @@ every plugin at once — used for development and as the install-all spec),
    one and adjust `name`, `version`, `description`, the `osh.plugins` entry
    point, and the `package-dir`/`packages`/`package-data` keys (they all
    reference the package name).
-3. Declare the plugin's surface in `osh-plugin.toml`, as described in the
+3. Declare the plugin's surface under `[tool.osh]` in that `pyproject.toml`,
+   as described in the
    core [plugin guide](https://github.com/dreispt/osh/blob/master/PLUGINS.md):
 
    ```toml
+   [tool.osh]
    extends = ["db.list"]          # handlers the plugin extends (optional)
 
-   [commands]                     # top-level commands (optional)
+   [tool.osh.commands]            # top-level commands (optional)
    hello = "Say hello."
    ```
 

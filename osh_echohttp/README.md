@@ -23,25 +23,26 @@ timeout, so it never lingers past failed boots.
 - Skipped automatically for `--dry-run`, Odoo subcommands (`shell`,
   `neutralize`, ...), `--no-http` and `--version`/`--help`.
 
-Requires `osh` >= 1.1 (handler subclassing via `osh.handlers`, params as
+Requires `osh` >= 1.7 (handler subclassing via `osh.handlers`, params as
 `run()` decorators).
 
 ## How it works
 
 - `UrlWatch` subclasses the `odoo` handler (`OdooRun`) and is declared via
-  `extends = ["odoo"]` in `osh-plugin.toml` — the plugin imports lazily,
+  `extends = ["odoo"]` under `[tool.osh]` — the plugin imports lazily,
   only when `osh odoo` actually runs. It injects `--open` and
   `--url-watch/--no-url-watch` at parse time (decorators on `run()`) and runs
   `pre_env` right before `Backend.env()` execs — it resolves the port and
   spawns the sidecar.
 - The sidecar is the hidden `osh echohttp PORT [DBNAME]` command — declared
-  with `hidden = true` in `osh-plugin.toml`, so it never shows in `--help`.
+  with `hidden = true` under `[tool.osh.commands]`, so it never shows in
+  `--help`.
 
 ## Layout
 
 ```
 osh_echohttp/
-├── osh-plugin.toml  # description + extends = ["odoo"] + hidden [commands]
+├── pyproject.toml   # package metadata + [tool.osh] declarations
 ├── __init__.py      # re-exports UrlWatch and EchoHttp for discovery
 ├── commands.py      # hidden `osh echohttp` sidecar command
 ├── watcher.py       # UrlWatch handler, port resolution, TCP polling

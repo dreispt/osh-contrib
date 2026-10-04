@@ -1,2 +1,0 @@
-[commands]
-collect-migrations = "Gather module migrations/ scripts across version branches."

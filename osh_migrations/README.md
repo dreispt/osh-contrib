@@ -58,5 +58,5 @@ osh odoo -- -u all --stop-after-init
 
 ## Requirements
 
-- `osh` >= 1.1
+- `osh` >= 1.7
 - `git`
