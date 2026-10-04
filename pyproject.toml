@@ -1,3 +1,13 @@
+# Bundle distribution — ships every osh_* plugin in one install.
+# Used for development (`pip install -e .`) and as the install-all spec
+# (`pipx inject osh "osh-contrib @ git+…"`). Each plugin is also its own
+# distribution under its directory (osh_dbstats/pyproject.toml, ...) for
+# granular installs. Do NOT install the bundle together with individual
+# plugin dists — they ship the same packages and collide.
+#
+# `osh` is deliberately not a declared dependency: this dist is installed
+# to *create* environments, and the `osh` name on PyPI resolves to an
+# unrelated package. Install osh first, then this.
 [project]
 name = "osh-contrib"
 version = "0.1.0"
@@ -45,9 +55,9 @@ build-backend = "setuptools.build_meta"
 include = ["osh_*"]
 
 [tool.setuptools.package-data]
-"*" = ["osh-plugin.toml"]
+"*" = ["osh-plugin.toml", "pyproject.toml"]
 
-# Register plugins for pip installs as well:
+# Register all bundled plugins on the `osh.plugins` entry-point group.
 [project.entry-points."osh.plugins"]
 osh_dbstats = "osh_dbstats"
 osh_echohttp = "osh_echohttp"

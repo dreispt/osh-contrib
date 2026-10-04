@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=70.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "osh-echohttp"
+version = "0.2.0"
+description = "Print the browser URL once `osh odoo` is ready to serve."
+authors = [
+    {name = "Daniel Reis"}
+]
+readme = "README.md"
+license = {text = "LGPL-3.0-only"}
+requires-python = ">=3.10"
+keywords = ["odoo", "cli", "shell", "development", "osh"]
+dependencies = [
+    "click>=8.1",
+    "osh>=1.1",
+]
+
+[project.optional-dependencies]
+tests = [
+    "pytest>=7.0",
+]
+
+[project.entry-points."osh.plugins"]
+osh_echohttp = "osh_echohttp"
+
+[tool.setuptools]
+package-dir = {"osh_echohttp" = "."}
+packages = ["osh_echohttp"]
+
+[tool.setuptools.package-data]
+osh_echohttp = ["osh-plugin.toml"]

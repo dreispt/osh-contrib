@@ -1,7 +1,3 @@
-description = "Dashboard of an Odoo database's size, bloat and activity."
-version = "0.1.0"
-min_osh = "1.1"
-
 [group_commands.db]
 stats = "Diagnose an Odoo database: size, bloat, indexes, activity."
 vacuum = "Run VACUUM ANALYZE on the database or selected tables."

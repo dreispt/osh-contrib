@@ -1,0 +1,14 @@
+# One pip package spec per osh-contrib plugin.
+#
+# Install all plugins in one shot:
+#
+#   pipx inject osh -r <(curl -fsSL https://raw.githubusercontent.com/dreispt/osh-contrib/master/plugins.txt)
+#
+# For a subset: download this file, comment out the plugins you don't
+# want, then `pipx inject osh -r plugins.txt`.
+# Each line is also the per-plugin spec for `pipx inject osh "<line>"`.
+osh-dbstats @ git+https://github.com/dreispt/osh-contrib.git#subdirectory=osh_dbstats
+osh-echohttp @ git+https://github.com/dreispt/osh-contrib.git#subdirectory=osh_echohttp
+osh-migrations @ git+https://github.com/dreispt/osh-contrib.git#subdirectory=osh_migrations
+osh-uninstall @ git+https://github.com/dreispt/osh-contrib.git#subdirectory=osh_uninstall
+osh-update @ git+https://github.com/dreispt/osh-contrib.git#subdirectory=osh_update
