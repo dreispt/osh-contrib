@@ -15,7 +15,7 @@ requires-python = ">=3.10"
 keywords = ["odoo", "cli", "shell", "development", "osh"]
 dependencies = [
     "click>=8.1",
-    "osh>=1.1",
+    "osh>=1.7.0",
 ]
 
 [project.optional-dependencies]
@@ -26,9 +26,15 @@ tests = [
 [project.entry-points."osh.plugins"]
 osh_dbstats = "osh_dbstats"
 
+[tool.osh.group_commands.db]
+stats = "Diagnose an Odoo database: size, bloat, indexes, activity."
+vacuum = "Run VACUUM ANALYZE on the database or selected tables."
+
 [tool.setuptools]
 package-dir = {"osh_dbstats" = "."}
 packages = ["osh_dbstats"]
 
+# Ship pyproject.toml inside the package — osh reads [tool.osh] from it
+# without importing the plugin.
 [tool.setuptools.package-data]
-osh_dbstats = ["osh-plugin.toml"]
+osh_dbstats = ["pyproject.toml"]

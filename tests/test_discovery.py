@@ -1,32 +1,48 @@
 """Tests that core plugin discovery wires up the repo's ``osh_*`` plugins.
 
-Generic over the repo contents: every ``osh_*`` subpackage marked with
-``osh-plugin.toml`` registers a lazy spec under the ``osh-contrib`` source,
-and every capability declared in its metadata surfaces through the loader —
-without the plugin module being imported until it is needed.
+Generic over the repo contents: every ``osh_*`` distribution declaring
+``[tool.osh]`` in its ``pyproject.toml`` registers a lazy spec through its
+``osh.plugins`` entry point, and every capability declared there surfaces
+through the loader — without the plugin module being imported until it is
+needed. The loader-level tests require the plugins installed in the test
+environment (``pip install -e .`` — the repo's bundle distribution).
 """
 
 import sys
 from pathlib import Path
 
 import pytest
+from osh.config import tomllib
 from osh.handlers import resolve
 from osh.utils import plugin_loader
-from osh.utils.plugin_registry import plugin_meta, plugin_registry, plugin_source_name
+from osh.utils.plugin_registry import plugin_registry
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 @pytest.fixture
-def repo_plugins(tmp_path, monkeypatch):
-    """Symlink this repo into a temporary user plugin directory."""
-    plugin_dir = tmp_path / "plugins"
-    plugin_dir.mkdir()
-    (plugin_dir / "osh-contrib").symlink_to(REPO_ROOT, target_is_directory=True)
-    monkeypatch.setattr("osh.utils.plugin_registry.user_plugin_dir", lambda: plugin_dir)
+def registry():
+    """The plugin registry, rebuilt from the installed entry points."""
     plugin_loader.reset_plugin_registry()
     yield plugin_registry()
     plugin_loader.reset_plugin_registry()
+
+
+@pytest.fixture
+def installed(registry):
+    """Skip unless every repo plugin's entry point is installed here."""
+    specs = registry.specs
+    missing = [
+        pkg
+        for pkg in _repo_plugin_packages()
+        if pkg not in specs or specs[pkg].kind != "entry_point"
+    ]
+    if missing:
+        pytest.skip(
+            f"plugin distributions not installed ({', '.join(missing)}) — "
+            "run: pip install -e ."
+        )
+    return registry
 
 
 def _repo_plugin_packages():
@@ -41,26 +57,42 @@ def _repo_plugin_packages():
     }
 
 
-def test_every_plugin_package_is_marked():
-    """Every ``osh_*`` package declares its surface in ``osh-plugin.toml``."""
+def _plugin_meta(path):
+    """Return the ``[tool.osh]`` declarations of a plugin's pyproject.toml."""
+    data = tomllib.loads((path / "pyproject.toml").read_text(encoding="utf-8"))
+    return data.get("tool", {}).get("osh") or {}
+
+
+def _declared_ep(path):
+    """Return the ``osh.plugins`` entry points declared by a plugin."""
+    data = tomllib.loads((path / "pyproject.toml").read_text(encoding="utf-8"))
+    return (data.get("project", {}).get("entry-points") or {}).get("osh.plugins") or {}
+
+
+def test_every_plugin_package_declares_itself():
+    """Every ``osh_*`` package ships pyproject.toml with [tool.osh] + entry point."""
     for pkg, path in _repo_plugin_packages().items():
-        assert (path / "osh-plugin.toml").is_file(), f"{pkg} has no osh-plugin.toml"
+        assert (path / "pyproject.toml").is_file(), f"{pkg} has no pyproject.toml"
+        eps = _declared_ep(path)
+        assert eps.get(pkg) == pkg, (
+            f"{pkg} does not register '{pkg} = \"{pkg}\"' under "
+            '[project.entry-points."osh.plugins"]'
+        )
+        assert _plugin_meta(path), f"{pkg} declares no [tool.osh] surface"
 
 
-def test_discovery_registers_lazy_specs(repo_plugins):
+def test_discovery_registers_lazy_specs(installed):
     """Each package registers a lazy spec — discovery imports nothing."""
     specs = plugin_registry().specs
     for pkg in _repo_plugin_packages():
-        source = plugin_source_name(pkg)
-        spec = specs.get(source)
+        spec = specs.get(pkg)
         assert spec is not None, f"{pkg} was not discovered"
         assert spec.lazy
         assert not spec.loaded
-        mangled = f"osh_user_plugin_osh_contrib_{pkg}"
-        assert mangled not in sys.modules, f"{pkg} was imported at discovery time"
+        assert pkg not in sys.modules, f"{pkg} was imported at discovery time"
 
 
-def test_declared_commands_surface(repo_plugins):
+def test_declared_commands_surface(installed):
     """Every declared command gets a lazy stub — still without imports."""
     top = {(src, c.name) for src, c in plugin_loader.load_plugins()}
     groups = {
@@ -69,22 +101,20 @@ def test_declared_commands_surface(repo_plugins):
         for src, c in pairs
     }
     for pkg, path in _repo_plugin_packages().items():
-        source = plugin_source_name(pkg)
-        meta = plugin_meta(path)
+        meta = _plugin_meta(path)
         for name in meta.get("commands") or {}:
-            assert (source, name) in top
+            assert (pkg, name) in top
         for group, decls in (meta.get("group_commands") or {}).items():
             for name in decls:
-                assert (source, group, name) in groups
+                assert (pkg, group, name) in groups
 
 
-def test_declared_commands_resolve(repo_plugins):
+def test_declared_commands_resolve(installed):
     """Resolving a declared command imports its plugin and finds it."""
     specs = plugin_registry().specs
     for pkg, path in _repo_plugin_packages().items():
-        source = plugin_source_name(pkg)
-        spec = specs[source]
-        meta = plugin_meta(path)
+        spec = specs[pkg]
+        meta = _plugin_meta(path)
         for name in meta.get("commands") or {}:
             command = spec.resolve_command(None, name)
             assert command is not None and command.name == name
@@ -94,15 +124,15 @@ def test_declared_commands_resolve(repo_plugins):
                 assert command is not None and command.name == name
 
 
-def test_declared_extensions_are_subclasses(repo_plugins):
+def test_declared_extensions_are_subclasses(installed):
     """Each ``extends`` target gains a subclass when the plugin loads."""
     specs = plugin_registry().specs
     for pkg, path in _repo_plugin_packages().items():
-        meta = plugin_meta(path)
+        meta = _plugin_meta(path)
         targets = meta.get("extends") or []
         if not targets:
             continue
-        module = specs[plugin_source_name(pkg)].load()
+        module = specs[pkg].load()
         for target in targets:
             base = resolve(target)
             extensions = [

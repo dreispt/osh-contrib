@@ -5,9 +5,9 @@ options and a ``pre_env`` step that spawns a detached ``osh echohttp``
 sidecar — it polls the Odoo HTTP port and prints ``Odoo ready: <url>`` on
 the terminal (interleaved with Odoo's own log output).
 
-Both the extension and the hidden sidecar command are declared in
-``osh-plugin.toml``, so the module is imported lazily — only when
-``osh odoo`` or ``osh echohttp`` actually runs.
+Both the extension and the hidden sidecar command are declared under
+``[tool.osh]`` in ``pyproject.toml``, so the module is imported lazily —
+only when ``osh odoo`` or ``osh echohttp`` actually runs.
 """
 
 from .commands import EchoHttp  # noqa: F401 — re-exported for discovery

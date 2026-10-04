@@ -8,8 +8,8 @@ be removed, asks for confirmation, and performs the removal by piping a
 are re-checked afterwards so a silently swallowed failure never reports
 success.
 
-The command is declared in ``osh-plugin.toml``, so the module is imported
-lazily — only when ``osh addon uninstall`` actually runs.
+The command is declared under ``[tool.osh]`` in ``pyproject.toml``, so the
+module is imported lazily — only when ``osh addon uninstall`` actually runs.
 """
 
 from .commands import AddonUninstall  # noqa: F401 — re-exported for discovery

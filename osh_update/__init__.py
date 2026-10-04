@@ -10,8 +10,9 @@ Also extends ``osh backup restore``: when a restore brings in a dump without
 stored fingerprints, a local baseline is recorded right away so later
 ``osh addon update`` runs diff from the restore point.
 
-The plugin's surface is declared in ``osh-plugin.toml``, so the module is
-imported lazily — only when ``osh addon update`` or ``osh backup restore`` runs.
+The plugin's surface is declared under ``[tool.osh]`` in ``pyproject.toml``,
+so the module is imported lazily — only when ``osh addon update`` or
+``osh backup restore`` runs.
 """
 
 from .commands import AddonUpdate  # noqa: F401 — re-exported for discovery

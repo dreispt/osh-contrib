@@ -1,4 +1,0 @@
-extends = ["odoo"]
-
-[commands]
-echohttp = { hidden = true, help = "Print the Odoo URL once the server is ready." }

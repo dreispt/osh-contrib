@@ -3,8 +3,8 @@
 All statements run through ``psql`` via ``osh.db.run_in_backend`` — the
 same backend-routed execution osh core uses for ``db_exists`` and
 friends, so Docker-backed projects run ``psql`` inside the container
-automatically. Mirrors ``osh_uninstall``'s store module; plugins cannot
-import each other when loaded as user plugins.
+automatically. Mirrors ``osh_uninstall``'s store module; plugins are
+separate distributions and cannot import each other.
 """
 
 import click

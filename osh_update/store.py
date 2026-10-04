@@ -8,8 +8,8 @@ restores. All access goes through ``psql`` run via
 for ``db_exists`` and friends, so Docker-backed projects run ``psql``
 inside the container automatically.
 
-``osh_uninstall`` carries a near-identical ``_psql`` helper: plugins
-cannot import each other when loaded as user plugins, so the duplication
+``osh_uninstall`` carries a near-identical ``_psql`` helper: plugins are
+separate distributions and cannot import each other, so the duplication
 is deliberate. Keep the two in sync, and prefer moving the helper into
 osh core if a third plugin needs it.
 """

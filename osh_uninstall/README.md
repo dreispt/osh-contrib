@@ -43,9 +43,9 @@ transparently.
 
 ## Requirements
 
-- `osh` >= 1.1 (lazy plugin discovery via `osh-plugin.toml` and handler
-  subclassing through `osh.handlers`). The command is declared under
-  `[group_commands.addon]` in `osh-plugin.toml`, so the module imports
-  only when `osh addon uninstall` actually runs.
+- `osh` >= 1.7 (lazy plugin discovery and handler subclassing through
+  `osh.handlers`). The command is declared under
+  `[tool.osh.group_commands.addon]` in `pyproject.toml`, so the module
+  imports only when `osh addon uninstall` actually runs.
 - A `psql` able to reach the target database using the project's configured
   credentials (the same requirement `osh odoo` already has).
