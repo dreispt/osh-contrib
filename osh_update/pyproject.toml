@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=70.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "osh-update"
+version = "0.1.1"
+description = "Update project modules whose code changed since the last update."
+authors = [
+    {name = "Daniel Reis"}
+]
+readme = "README.md"
+license = {text = "LGPL-3.0-only"}
+requires-python = ">=3.10"
+keywords = ["odoo", "cli", "shell", "development", "osh"]
+dependencies = [
+    "click>=8.1",
+    "osh>=1.3",
+]
+
+[project.optional-dependencies]
+tests = [
+    "pytest>=7.0",
+]
+
+[project.entry-points."osh.plugins"]
+osh_update = "osh_update"
+
+[tool.setuptools]
+package-dir = {"osh_update" = "."}
+packages = ["osh_update"]
+
+[tool.setuptools.package-data]
+osh_update = ["osh-plugin.toml"]

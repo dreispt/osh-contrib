@@ -12,13 +12,66 @@ Ensure `osh` is installed on your system — the quickest way is `pipx`:
 pipx install git+https://github.com/dreispt/osh.git
 ```
 
-Install the whole collection as a single `osh-contrib` plugin:
+Plugins are ordinary Python packages installed into `osh`'s environment.
+Pick the subsection matching how `osh` was installed — and don't mix the
+bundle with individual plugin dists (they ship the same code).
+
+### A single plugin, with pipx
+
+For `osh` installed as a [pipx](https://pipx.pypa.io) app:
+
+```bash
+pipx inject osh "osh-dbstats @ git+https://github.com/dreispt/osh-contrib.git#subdirectory=osh_dbstats"
+```
+
+Each plugin is its own distribution installed from its repo subdirectory —
+swap the name in both places for another plugin.
+
+Remove with `pipx uninject osh osh-dbstats`. No restart is needed —
+`osh` discovers entry points on each run.
+
+### All plugins at once, with pipx
+
+The `osh-contrib` bundle distribution ships every plugin in one install:
+
+```bash
+pipx inject osh "osh-contrib @ git+https://github.com/dreispt/osh-contrib.git"
+```
+
+For a subset, download [`plugins.txt`](plugins.txt) — one spec per
+plugin — comment out what you don't want, then feed it to `inject`:
+
+```bash
+curl -fsSL -o plugins.txt https://raw.githubusercontent.com/dreispt/osh-contrib/master/plugins.txt
+# edit plugins.txt, comment out plugins you don't want
+pipx inject osh -r plugins.txt
+```
+
+### Without pipx (venv, uv)
+
+Plugins must live in `osh`'s environment, so use that env's installer:
+
+```bash
+# venv where `osh` is pip-installed
+pip install "osh-dbstats @ git+https://github.com/dreispt/osh-contrib.git#subdirectory=osh_dbstats"
+
+# `osh` installed as a uv tool
+uv tool install osh --with "osh-dbstats @ git+https://github.com/dreispt/osh-contrib.git#subdirectory=osh_dbstats"
+```
+
+### Legacy: `osh plug install`
+
+The pre-packaging installer still works — it clones the repo into
+`~/.config/osh/plugins/`:
 
 ```bash
 osh plug install https://github.com/dreispt/osh-contrib
 ```
 
-Then restart `osh` so the new commands are loaded.
+It is being phased out. Never combine it with a package install of the
+same plugin — plugins registered through both paths report
+duplicate-registration warnings on every `osh` run
+(`osh plug uninstall osh-contrib` removes the legacy one).
 
 ## Plugins
 
@@ -38,13 +91,14 @@ Each `osh_*` directory is a self-contained plugin with its own
 
 ## Repository layout
 
-Similar to an Odoo addons repo, the repository root is a bare directory —
-each plugin directory is self-contained and `osh` discovers every subpackage
-marked with an `osh-plugin.toml` file automatically:
+Similar to an Odoo addons repo, each plugin directory is self-contained —
+and each is also an installable distribution (`pipx inject osh
+"<name> @ git+…#subdirectory=osh_<name>"`):
 
 ```
 osh-contrib/
 └── osh_example/
+    ├── pyproject.toml     # the plugin's distribution (osh.plugins entry point)
     ├── osh-plugin.toml    # declares the plugin's commands and extensions
     ├── __init__.py        # re-exports the plugin's classes
     ├── README.md          # plugin documentation
@@ -52,16 +106,21 @@ osh-contrib/
     └── tests/             # plugin tests
 ```
 
-There is no registration step: adding a plugin is just adding a directory.
+The repository root carries the `osh-contrib` bundle distribution (installs
+every plugin at once — used for development and as the install-all spec),
+`plugins.txt` (per-plugin spec list), and repo-wide tooling configuration.
 
 ## Adding a plugin
 
 1. Create a package `osh_<name>/` at the repository root.
-2. Declare the plugin's surface in `osh-plugin.toml`, as described in the
+2. Add a `pyproject.toml` for the plugin's distribution — copy an existing
+   one and adjust `name`, `version`, `description`, the `osh.plugins` entry
+   point, and the `package-dir`/`packages`/`package-data` keys (they all
+   reference the package name).
+3. Declare the plugin's surface in `osh-plugin.toml`, as described in the
    core [plugin guide](https://github.com/dreispt/osh/blob/master/PLUGINS.md):
 
    ```toml
-   description = "What the plugin does."
    extends = ["db.list"]          # handlers the plugin extends (optional)
 
    [commands]                     # top-level commands (optional)
@@ -73,33 +132,32 @@ There is no registration step: adding a plugin is just adding a directory.
    `Backend`/`BackupSource` subclasses are discovered automatically —
    see the plugin guide.
 
-3. Add a `README.md` documenting the plugin and a `tests/` package with
+4. Add a `README.md` documenting the plugin and a `tests/` package with
    its tests.
 
-4. Optionally register it under the `osh.plugins` entry point group in
-   `pyproject.toml` so `pip install` also exposes it.
+5. Register it for install-all: append its subdirectory spec to
+   `plugins.txt`, and add its `osh.plugins` entry point to the
+   `osh-contrib` bundle in the root `pyproject.toml`.
 
 ## Development
 
-For local development, install the clone in editable mode (symlinked into
-the osh user plugin directory):
+The root `osh-contrib` package bundles every plugin — install it editable
+alongside an editable clone of `osh`, and all plugins load with edits
+live on the next `osh` run:
 
 ```bash
-osh plug install -e /path/to/osh-contrib
+git clone https://github.com/dreispt/osh
+git clone https://github.com/dreispt/osh-contrib
+python -m venv .venv && source .venv/bin/activate
+pip install -e ./osh -e "./osh-contrib[tests]"
 ```
 
-Or install it directly from the working copy:
-
-```bash
-osh plug install file:///absolute/path/to/osh-contrib
-```
-
-Restart `osh` after changing plugin code; plugins are loaded at startup.
+For a pipx-managed `osh`, inject a plugin's directory editable instead:
+`pipx inject osh -e /path/to/osh-contrib/osh_dbstats`.
 
 Run the tests and linters:
 
 ```bash
-pip install -e ".[tests]" "osh @ git+https://github.com/dreispt/osh.git"
 python -m pytest
 pre-commit run --all-files
 ```

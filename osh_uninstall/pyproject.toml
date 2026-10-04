@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=70.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "osh-uninstall"
+version = "0.1.0"
+description = "Uninstall Odoo modules — and their dependents — from a database."
+authors = [
+    {name = "Daniel Reis"}
+]
+readme = "README.md"
+license = {text = "LGPL-3.0-only"}
+requires-python = ">=3.10"
+keywords = ["odoo", "cli", "shell", "development", "osh"]
+dependencies = [
+    "click>=8.1",
+    "osh>=1.1",
+]
+
+[project.optional-dependencies]
+tests = [
+    "pytest>=7.0",
+]
+
+[project.entry-points."osh.plugins"]
+osh_uninstall = "osh_uninstall"
+
+[tool.setuptools]
+package-dir = {"osh_uninstall" = "."}
+packages = ["osh_uninstall"]
+
+[tool.setuptools.package-data]
+osh_uninstall = ["osh-plugin.toml"]
