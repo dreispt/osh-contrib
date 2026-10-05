@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "osh-echohttp"
-version = "0.2.0"
+version = "0.2.1"
 description = "Print the browser URL once `osh odoo` is ready to serve."
 authors = [
     {name = "Daniel Reis"}
