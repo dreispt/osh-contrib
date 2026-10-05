@@ -25,7 +25,7 @@ POLL_INTERVAL = 0.5
 READY_DELAY = 2.0
 _PORT_ARGS = ("--http-port", "--xmlrpc-port", "--xmlrpc_port", "-p")
 _CONFIG_ARGS = ("--config", "-c")
-_NO_SERVER_ARGS = ("--version", "--help", "-h")
+_NO_SERVER_ARGS = ("--version", "--help", "-h", "--stop-after-init")
 
 
 class UrlWatch(OdooRun):
@@ -36,8 +36,8 @@ class UrlWatch(OdooRun):
     spawns the detached sidecar in ``pre_env``. Skips
     dry runs, explicitly disabled runs (``--no-url-watch``/
     ``OSH_URL_WATCH=0``), Odoo subcommands such as ``shell``, and
-    invocations that never start the HTTP server (``--version``,
-    ``--help``, ``--no-http``, ``http_port = 0``).
+    invocations that never serve HTTP (``--version``, ``--help``,
+    ``--stop-after-init``, ``--no-http``, ``http_port = 0``).
 
     The sidecar is the hidden ``osh echohttp`` command declared by this
     plugin (see ``commands.py``).

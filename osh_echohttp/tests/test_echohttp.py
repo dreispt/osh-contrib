@@ -146,6 +146,8 @@ def test_pre_env_uses_env_spec_config(popen_spy, tmp_path):
         _odoo_params(extra_args=("shell",)),
         _odoo_params(extra_args=("neutralize", "-d", "mydb")),
         _odoo_params(extra_args=("--version",)),
+        _odoo_params(extra_args=("--stop-after-init",)),
+        _odoo_params(extra_args=("-i", "sale", "--stop-after-init")),
         _odoo_params(extra_args=("--no-http",)),
     ],
     ids=[
@@ -154,6 +156,8 @@ def test_pre_env_uses_env_spec_config(popen_spy, tmp_path):
         "shell_subcommand",
         "neutralize_subcommand",
         "version",
+        "stop_after_init",
+        "init_stop_after_init",
         "no_http",
     ],
 )
