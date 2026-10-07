@@ -1,4 +1,4 @@
-"""Tests for the ``osh addon uninstall`` command."""
+"""Tests for the ``osh db uninstall`` command."""
 
 from click.testing import CliRunner
 
