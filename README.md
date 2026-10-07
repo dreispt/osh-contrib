@@ -71,9 +71,10 @@ under `[tool.osh]` in its `pyproject.toml`, with its own README and tests:
 - [`osh_migrations`](osh_migrations/) — collects module `migrations/`
   scripts across OCA version branches (`osh collect-migrations`).
 - [`osh_uninstall`](osh_uninstall/) — uninstalls Odoo modules, and their
-  installed dependents, from a database (`osh addon uninstall mod_a,mod_b`).
+  installed dependents, from a database (`osh db uninstall mod_a,mod_b`).
 - [`osh_update`](osh_update/) — detects project modules whose code changed
-  since the last update and runs `odoo -u` on them (`osh addon update`).
+  since the last update and runs `odoo -u` on them (`osh db update`,
+  `osh db installed`).
 
 ## Repository layout
 

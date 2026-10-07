@@ -1,4 +1,4 @@
-"""PostgreSQL-backed state for ``osh addon update``.
+"""PostgreSQL-backed state for ``osh db update`` and ``osh db installed``.
 
 Module fingerprints are stored in the target database itself as an
 ``ir.config_parameter`` record (``osh.module_fingerprints``, a JSON
@@ -48,6 +48,38 @@ def get_module_states(base, db_name, ctx=None):
             f"Could not read module states from '{db_name}': " f"{stderr.strip()}"
         )
     return dict(line.split("\t", 1) for line in stdout.splitlines() if "\t" in line)
+
+
+def get_module_registry(base, db_name, ctx=None):
+    """Return ``ir_module_module`` rows ``(name, version, state, desc)``.
+
+    Every module not ``uninstalled`` — installed, pending install,
+    upgrade or removal — ordered by name. Returns ``None`` when the table
+    does not exist — the database is not an initialized Odoo database.
+    """
+    returncode, stdout, stderr = _psql(
+        base,
+        db_name,
+        "SELECT name, COALESCE(latest_version, ''), state, "
+        "COALESCE(shortdesc::text, '') FROM ir_module_module "
+        "WHERE state <> 'uninstalled' ORDER BY name",
+        field_separator="\t",
+        ctx=ctx,
+    )
+    if returncode != 0:
+        if 'relation "ir_module_module" does not exist' in stderr:
+            return None
+        raise click.ClickException(
+            f"Could not read modules from '{db_name}': {stderr.strip()}"
+        )
+    rows = []
+    for line in stdout.splitlines():
+        if not line:
+            continue
+        fields = (line.split("\t", 3) + [""] * 4)[:4]
+        fields[3] = _translated_value(fields[3])
+        rows.append(tuple(fields))
+    return rows
 
 
 def read_fingerprints(base, db_name, ctx=None):
@@ -140,3 +172,22 @@ def _psql(base, db_name, sql, *, field_separator=None, variables=None, ctx=None)
     if returncode is None:
         raise click.ClickException("Could not locate `psql`. Is PostgreSQL installed?")
     return returncode, stdout, stderr
+
+
+def _translated_value(value):
+    """Return the readable text of a ``::text``-dumped translated field.
+
+    Translated Char/Text fields (e.g. ``ir_module_module.shortdesc``) are
+    ``jsonb`` in modern Odoo — ``{"en_US": "…", "fr_FR": "…"}`` — while
+    older versions store plain text. Prefer ``en_US``, else the first
+    language found.
+    """
+    if not value.startswith("{"):
+        return value
+    try:
+        data = json.loads(value)
+    except ValueError:
+        return value
+    if not isinstance(data, dict):
+        return value
+    return data.get("en_US") or next(iter(data.values()), "")

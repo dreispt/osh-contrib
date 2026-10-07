@@ -1,4 +1,4 @@
-"""Update orchestration for ``osh addon update``.
+"""Update orchestration for ``osh db update``.
 
 Detects which installed project modules changed since the last update and
 runs ``odoo -u`` on them through the public ``osh odoo`` CLI. Kept separate
@@ -69,7 +69,8 @@ def detect_targets(
         )
 
     if status:
-        _report_module_list("Installed modules", sorted(reported), per_line=per_line)
+        label = "Tracked modules" if update_all else "Tracked third-party modules"
+        _report_module_list(label, sorted(reported), per_line=per_line)
 
     for name in sorted(reported - set(current)):
         echo.warning(
@@ -91,7 +92,7 @@ def detect_targets(
                 "module(s); no updates run."
             )
             echo.info(
-                "Run 'osh addon update --all' to force-update installed "
+                "Run 'osh db update --all' to force-update installed "
                 "third-party modules."
             )
         return None
@@ -110,13 +111,13 @@ class RestoreBaseline(resolve("backup.restore")):
 
     A restored dump keeps the fingerprint map it carried — it describes the
     code the database was last updated against, so real diffs are still
-    detected by the next ``osh addon update``. Only when the dump has no map
+    detected by the next ``osh db update``. Only when the dump has no map
     at all are the local modules' fingerprints recorded, so subsequent runs
     diff from the restore point instead of re-baselining lazily.
 
     The extension signature carries no options, so the baseline always uses
     the default fingerprint scope — nested repos included, like a plain
-    ``osh addon update``. ``--no-submodules`` only narrows what a later
+    ``osh db update``. ``--no-submodules`` only narrows what a later
     update run compares, never what the restore recorded.
     """
 

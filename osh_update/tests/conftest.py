@@ -1,5 +1,6 @@
 """Fixtures for the ``osh_update`` test suite."""
 
+import json
 import subprocess
 import uuid
 
@@ -116,20 +117,40 @@ def pg_db():
             """Create a database with stub Odoo module/config tables.
 
             ``modules`` is an iterable of ``(name, state)`` rows inserted into
-            a minimal ``ir_module_module`` table. Returns the database name.
+            a minimal ``ir_module_module`` table; a third ``version`` element
+            fills ``latest_version`` and a fourth fills ``shortdesc``.
+            ``shortdesc`` is ``jsonb`` like in real Odoo (translated field),
+            so a plain summary is stored as ``{"en_US": ...}``; pass a
+            ``{...}`` literal to store an explicit translated value.
+            Returns the database name.
             """
             name = self.create(name)
-            _psql(name, "CREATE TABLE ir_module_module (name varchar, state varchar)")
+            _psql(
+                name,
+                "CREATE TABLE ir_module_module (name varchar, state varchar, "
+                "latest_version varchar, shortdesc jsonb)",
+            )
             _psql(
                 name,
                 "CREATE TABLE ir_config_parameter " "(key varchar UNIQUE, value text)",
             )
-            for mod_name, state in modules:
+            for row in modules:
+                mod_name, state = row[:2]
+                version = row[2] if len(row) > 2 else ""
+                desc = row[3] if len(row) > 3 else ""
+                if not desc.startswith("{"):
+                    desc = json.dumps({"en_US": desc})
                 _psql(
                     name,
-                    "INSERT INTO ir_module_module (name, state) "
-                    "VALUES (:'mod', :'state')",
-                    {"mod": mod_name, "state": state},
+                    "INSERT INTO ir_module_module "
+                    "(name, state, latest_version, shortdesc) "
+                    "VALUES (:'mod', :'state', :'version', :'desc')",
+                    {
+                        "mod": mod_name,
+                        "state": state,
+                        "version": version,
+                        "desc": desc,
+                    },
                 )
             return name
 

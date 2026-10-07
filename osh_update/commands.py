@@ -1,22 +1,26 @@
-"""``osh addon update`` handler.
+"""``osh db update`` and ``osh db installed`` handlers.
 
-Detects which project modules changed since the last update — using
-fingerprints stored in the target database's ``ir.config_parameter`` — and
-runs ``odoo -u`` on the installed ones. On the first run it only records the
-current fingerprints as a baseline without updating anything.
+``osh db update`` detects which project modules changed since the last
+update — using fingerprints stored in the target database's
+``ir.config_parameter`` — and runs ``odoo -u`` on the installed ones. On
+the first run it only records the current fingerprints as a baseline
+without updating anything.
+
+``osh db installed`` lists the modules recorded in a database with their
+installed version and state.
 """
 
 import click
 from osh import echo
 from osh.cli_utils import handler_command
 from osh.common import find_project_root
-from osh.db import resolve_db_name_for_run, sanitize_db_name
+from osh.db import db_exists, resolve_db_name_for_run, sanitize_db_name
 from osh.handlers import CommandHandler
 
-from . import core
+from . import core, store
 
 
-class AddonUpdate(CommandHandler):
+class DbUpdate(CommandHandler):
     """Update project modules whose code changed since the last update.
 
     Each project module is fingerprinted (code and data files; ``static/``
@@ -29,16 +33,14 @@ class AddonUpdate(CommandHandler):
     Examples:
 
     \b
-      osh addon update
-      osh addon update my_module other_module
-      osh addon update --all
-      osh addon update --status
-      osh addon update -d otherdb --dry-run
-
-    Runs on the project's active backend — see ``osh <backend> activate``.
+      osh db update
+      osh db update my_module other_module
+      osh db update --all
+      osh db update --status
+      osh db update -d otherdb --dry-run
     """
 
-    _cli_name = "addon.update"
+    _cli_name = "db.update"
 
     modules = ()
     db_name = None
@@ -86,7 +88,7 @@ class AddonUpdate(CommandHandler):
     @click.option(
         "--status",
         is_flag=True,
-        help="Report installed modules and those needing an update; "
+        help="Report tracked modules and those needing an update; "
         "records the fingerprint baseline on first run. "
         "Never runs odoo -u.",
     )
@@ -108,6 +110,8 @@ class AddonUpdate(CommandHandler):
             if self.db_name
             else resolve_db_name_for_run(base, ctx=self.ctx)
         )
+        if not db_exists(base, db_name, ctx=self.ctx):
+            raise click.ClickException(f"Database '{db_name}' does not exist.")
 
         if self.modules:
             targets = sorted(set(self.modules))
@@ -141,6 +145,65 @@ class AddonUpdate(CommandHandler):
         )
 
 
-#: Standalone ``update`` command — used by tests; the CLI wires the same
-#: handler through the ``[group_commands.addon]`` declaration.
-update = handler_command("update", AddonUpdate)
+class DbInstalled(CommandHandler):
+    """List the modules recorded in a database, with version and state.
+
+    Reads ``ir_module_module`` — every module whose state is not
+    'uninstalled' — and prints each module's technical name, installed
+    version and state. ``-l``/``--long`` appends the manifest summary.
+
+    Examples:
+
+    \b
+      osh db installed
+      osh db installed -l
+      osh db installed -d otherdb
+    """
+
+    _cli_name = "db.installed"
+
+    db_name = None
+    long = False
+
+    @click.option(
+        "-d",
+        "--db",
+        "db_name",
+        help="Database to list modules for " "(default: the resolved branch database).",
+    )
+    @click.option(
+        "-l",
+        "--long",
+        is_flag=True,
+        help="Long listing — include each module's manifest summary.",
+    )
+    def run(self):
+        base = find_project_root(required=True)
+        db_name = (
+            sanitize_db_name(self.db_name)
+            if self.db_name
+            else resolve_db_name_for_run(base, ctx=self.ctx)
+        )
+        if not db_exists(base, db_name, ctx=self.ctx):
+            raise click.ClickException(f"Database '{db_name}' does not exist.")
+        rows = store.get_module_registry(base, db_name, ctx=self.ctx)
+        if rows is None:
+            raise click.ClickException(
+                f"Database '{db_name}' is not an initialized Odoo database."
+            )
+        if not rows:
+            echo.info(f"No modules installed in '{db_name}'.")
+            return
+        width = 3 + bool(self.long)
+        headers = ("module", "version", "state", "description")[:width]
+        table = [row[:width] for row in rows]
+        widths = [max(len(row[i]) for row in (headers, *table)) for i in range(width)]
+        echo.output("  ".join(h.ljust(w) for h, w in zip(headers, widths)))
+        for row in table:
+            echo.output("  ".join(v.ljust(w) for v, w in zip(row, widths)))
+
+
+#: Standalone commands — used by tests; the CLI wires the same handlers
+#: through the ``[group_commands.db]`` declarations.
+update = handler_command("update", DbUpdate)
+installed = handler_command("installed", DbInstalled)
