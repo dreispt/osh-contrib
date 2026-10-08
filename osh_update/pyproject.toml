@@ -15,7 +15,7 @@ requires-python = ">=3.10"
 keywords = ["odoo", "cli", "shell", "development", "osh"]
 dependencies = [
     "click>=8.1",
-    "osh>=1.7.0",
+    "osh>=1.9.0",
 ]
 
 [project.optional-dependencies]
@@ -29,8 +29,9 @@ osh_update = "osh_update"
 [tool.osh]
 extends = ["backup.restore"]
 
-[tool.osh.group_commands.addon]
+[tool.osh.group_commands.db]
 update = "Update project modules whose code changed."
+installed = "List installed modules in a database."
 
 [tool.setuptools]
 package-dir = {"osh_update" = "."}

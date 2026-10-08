@@ -1,4 +1,4 @@
-"""PostgreSQL-backed state for ``osh addon uninstall``.
+"""PostgreSQL-backed state for ``osh db uninstall``.
 
 Module states and dependency relations are read directly from the target
 database through ``psql`` run via ``osh.db.run_in_backend`` — the same
@@ -107,7 +107,7 @@ def _psql(base, db_name, sql, *, field_separator=None, variables=None, ctx=None)
     Trade-off: ``-v`` values land in the ``psql`` argv, which is
     world-readable via ``/proc/<pid>/cmdline`` while the query runs. That
     is acceptable here — the module names already appear in the user's
-    own ``osh addon uninstall`` command line. Do not "fix" this with
+    own ``osh db uninstall`` command line. Do not "fix" this with
     ``\\set`` assignments in the SQL stream: psql meta-command arguments
     need hand-rolled backslash and quote escaping, reintroducing exactly
     the bug class ``-v`` removes. If a value ever is sensitive, use

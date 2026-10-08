@@ -1,4 +1,4 @@
-"""Uninstall orchestration for ``osh addon uninstall``.
+"""Uninstall orchestration for ``osh db uninstall``.
 
 Runs the removal through ``osh odoo shell``, piping a small script into
 ``odoo shell``'s stdin — when stdin is not a tty, Odoo executes it with a

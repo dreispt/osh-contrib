@@ -1,4 +1,4 @@
-"""``osh addon uninstall`` handler.
+"""``osh db uninstall`` handler.
 
 Removes installed modules — and their installed dependents — from a
 database by piping a ``button_immediate_uninstall`` call into
@@ -19,7 +19,7 @@ from osh.handlers import CommandHandler
 from . import core, store
 
 
-class AddonUninstall(CommandHandler):
+class DbUninstall(CommandHandler):
     """Uninstall Odoo modules from a database.
 
     MODULES is a comma-separated list of module technical names, like the
@@ -29,13 +29,13 @@ class AddonUninstall(CommandHandler):
     Examples:
 
     \b
-      osh addon uninstall my_module
-      osh addon uninstall mod_a,mod_b
-      osh addon uninstall my_module -d otherdb --yes
-      osh addon uninstall my_module --dry-run
+      osh db uninstall my_module
+      osh db uninstall mod_a,mod_b
+      osh db uninstall my_module -d otherdb --yes
+      osh db uninstall my_module --dry-run
     """
 
-    _cli_name = "addon.uninstall"
+    _cli_name = "db.uninstall"
 
     modules = ""
     db_name = None
@@ -130,5 +130,5 @@ class AddonUninstall(CommandHandler):
 
 
 #: Standalone ``uninstall`` command — used by tests; the CLI wires the same
-#: handler through the ``[group_commands.addon]`` declaration.
-uninstall = handler_command("uninstall", AddonUninstall)
+#: handler through the ``[group_commands.db]`` declaration.
+uninstall = handler_command("uninstall", DbUninstall)
