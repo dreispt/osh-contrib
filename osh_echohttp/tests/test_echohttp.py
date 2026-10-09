@@ -13,7 +13,7 @@ from osh.commands.odoo_cmd import OdooRun
 from osh.handlers import Env
 
 from osh_echohttp.commands import echohttp
-from osh_echohttp.watcher import READY_DELAY, UrlWatch, resolve_http_port, wait_for_port
+from osh_echohttp.watcher import READY_DELAY, UrlWatch, resolve_http_port, wait_for_http
 
 
 def _odoo_op(params, env_spec=None):
@@ -166,42 +166,76 @@ def test_pre_env_skips(popen_spy, params):
     assert popen_spy == []
 
 
-# --- wait_for_port -----------------------------------------------------
+# --- wait_for_http -----------------------------------------------------
 
 
-def test_wait_for_port_detects_listening_socket():
+@pytest.fixture
+def http_server():
+    """A real HTTP server answering every GET with 200."""
+    import http.server
+    import threading
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"ok")
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    yield server.server_port
+    server.shutdown()
+
+
+def test_wait_for_http_detects_a_responding_server(http_server):
+    assert wait_for_http(http_server, "/web/login?db=x", timeout=5, interval=0.05)
+
+
+def test_wait_for_http_ignores_a_socket_that_accepts_but_never_answers():
+    """Regression: werkzeug binds the HTTP socket before the database
+    registry is loaded, so the 'Odoo ready' message printed while
+    'Initializing database' was still running. A listening socket that
+    accepts connections but never answers an HTTP request — exactly
+    what Odoo does during module loading — must not count as ready."""
     with socket.socket() as srv:
         srv.bind(("127.0.0.1", 0))
         srv.listen(1)
         port = srv.getsockname()[1]
-        assert wait_for_port(port, timeout=5, interval=0.05) is True
+        assert wait_for_http(port, "/", timeout=0.5, interval=0.05) is False
 
 
-def test_wait_for_port_times_out_on_closed_port():
+def test_wait_for_http_times_out_on_closed_port():
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         closed_port = probe.getsockname()[1]
-    assert wait_for_port(closed_port, timeout=0.3, interval=0.05) is False
+    assert wait_for_http(closed_port, "/", timeout=0.3, interval=0.05) is False
 
 
-def test_wait_for_port_stops_when_parent_gone():
+def test_wait_for_http_stops_when_parent_gone():
     """A watcher whose spawning run exited stops polling immediately."""
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         closed_port = probe.getsockname()[1]
     gone = os.getppid() + 1  # any PID that is not this process's parent
     assert (
-        wait_for_port(closed_port, timeout=5, interval=0.05, parent_pid=gone) is False
+        wait_for_http(closed_port, "/", timeout=5, interval=0.05, parent_pid=gone)
+        is False
     )
 
 
-def test_wait_for_port_still_times_out_with_live_parent():
+def test_wait_for_http_still_times_out_with_live_parent():
     """A live parent does not cut the poll short — timeout still applies."""
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         closed_port = probe.getsockname()[1]
     assert (
-        wait_for_port(closed_port, timeout=0.3, interval=0.05, parent_pid=os.getppid())
+        wait_for_http(
+            closed_port, "/", timeout=0.3, interval=0.05, parent_pid=os.getppid()
+        )
         is False
     )
 
@@ -210,7 +244,7 @@ def test_wait_for_port_still_times_out_with_live_parent():
 
 
 def test_echohttp_command_prints_url(monkeypatch):
-    monkeypatch.setattr("osh_echohttp.watcher.wait_for_port", lambda *a, **k: True)
+    monkeypatch.setattr("osh_echohttp.watcher.wait_for_http", lambda *a, **k: True)
     monkeypatch.setattr("osh_echohttp.watcher.time.sleep", lambda *_: None)
     result = CliRunner().invoke(echohttp, ["8071"])
     assert result.exit_code == 0
@@ -218,17 +252,44 @@ def test_echohttp_command_prints_url(monkeypatch):
 
 
 def test_echohttp_command_prints_db_subdomain(monkeypatch):
-    monkeypatch.setattr("osh_echohttp.watcher.wait_for_port", lambda *a, **k: True)
+    monkeypatch.setattr("osh_echohttp.watcher.wait_for_http", lambda *a, **k: True)
     monkeypatch.setattr("osh_echohttp.watcher.time.sleep", lambda *_: None)
     result = CliRunner().invoke(echohttp, ["8071", "My_DB"])
     assert result.exit_code == 0
     assert "🚀 Odoo ready: http://my-db.localhost:8071" in result.output
 
 
+def test_echohttp_probes_a_db_bound_page(monkeypatch):
+    """A known database makes the readiness probe block until the
+    registry finished loading — that's what keeps 'ready' honest during
+    a database-initializing first run."""
+    probes = []
+    monkeypatch.setattr(
+        "osh_echohttp.watcher.wait_for_http",
+        lambda port, path, **k: probes.append(path) or True,
+    )
+    monkeypatch.setattr("osh_echohttp.watcher.time.sleep", lambda *_: None)
+    result = CliRunner().invoke(echohttp, ["8071", "my db"])
+    assert result.exit_code == 0
+    assert probes == ["/web/login?db=my%20db"]
+
+
+def test_echohttp_without_db_probes_a_lightweight_page(monkeypatch):
+    probes = []
+    monkeypatch.setattr(
+        "osh_echohttp.watcher.wait_for_http",
+        lambda port, path, **k: probes.append(path) or True,
+    )
+    monkeypatch.setattr("osh_echohttp.watcher.time.sleep", lambda *_: None)
+    result = CliRunner().invoke(echohttp, ["8071"])
+    assert result.exit_code == 0
+    assert probes == ["/web/health"]
+
+
 def test_echohttp_command_waits_before_echo(monkeypatch):
     """The URL echo is delayed so Odoo's ready log lines land first."""
     delays = []
-    monkeypatch.setattr("osh_echohttp.watcher.wait_for_port", lambda *a, **k: True)
+    monkeypatch.setattr("osh_echohttp.watcher.wait_for_http", lambda *a, **k: True)
     monkeypatch.setattr("osh_echohttp.watcher.time.sleep", delays.append)
     result = CliRunner().invoke(echohttp, ["8071"])
     assert result.exit_code == 0
@@ -237,7 +298,7 @@ def test_echohttp_command_waits_before_echo(monkeypatch):
 
 def test_echohttp_command_opens_browser(monkeypatch):
     opened = []
-    monkeypatch.setattr("osh_echohttp.watcher.wait_for_port", lambda *a, **k: True)
+    monkeypatch.setattr("osh_echohttp.watcher.wait_for_http", lambda *a, **k: True)
     monkeypatch.setattr("osh_echohttp.watcher.time.sleep", lambda *_: None)
     monkeypatch.setattr(
         "osh_echohttp.watcher.webbrowser.open", lambda url: opened.append(url)
@@ -248,7 +309,7 @@ def test_echohttp_command_opens_browser(monkeypatch):
 
 
 def test_echohttp_command_times_out_silently(monkeypatch):
-    monkeypatch.setattr("osh_echohttp.watcher.wait_for_port", lambda *a, **k: False)
+    monkeypatch.setattr("osh_echohttp.watcher.wait_for_http", lambda *a, **k: False)
     result = CliRunner().invoke(echohttp, ["8071"])
     assert result.exit_code == 1
     assert "Odoo ready" not in result.output
