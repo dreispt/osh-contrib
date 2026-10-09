@@ -3,25 +3,36 @@
 ``osh odoo`` hands off to Odoo via ``exec``, so the ``UrlWatch`` extension's
 ``pre_env`` spawns a detached ``osh echohttp`` sidecar process right
 before the handoff. The sidecar polls the Odoo HTTP port and, once the server
-accepts TCP connections, prints the browser URL on the inherited terminal
-(interleaved with Odoo's own log output) and optionally opens a browser tab.
+actually answers a database-bound request, prints the browser URL on the
+inherited terminal (interleaved with Odoo's own log output) and optionally
+opens a browser tab.
+
+A bare TCP accept is not enough: Odoo binds the HTTP socket before the
+database registry is loaded, so a first run that initializes the database
+would report "ready" minutes early. Requesting a db-bound page blocks on
+the registry until module loading finishes, so the first real HTTP
+response is the true ready signal.
 """
 
 import configparser
+import http.client
 import os
 import re
-import socket
 import subprocess
 import sys
 import time
 import webbrowser
+from urllib.parse import quote
 
 import click
 from osh.commands.odoo_cmd import OdooRun
 
 DEFAULT_PORT = 8069
-DEFAULT_TIMEOUT = 120.0
+# Generous bound: "ready" now means answering a db-bound request, which
+# only happens after a first run finishes initializing the database.
+DEFAULT_TIMEOUT = 600.0
 POLL_INTERVAL = 0.5
+REQUEST_TIMEOUT = 2.0
 READY_DELAY = 2.0
 _PORT_ARGS = ("--http-port", "--xmlrpc-port", "--xmlrpc_port", "-p")
 _CONFIG_ARGS = ("--config", "-c")
@@ -119,15 +130,58 @@ def spawn_url_watcher(port, *, db_name=None, open_browser=False):
     return subprocess.Popen(args, stdin=subprocess.DEVNULL, start_new_session=True)
 
 
-def wait_for_port(
+def watch_url(port, *, db_name=None, open_browser=False):
+    """Poll *port* until Odoo is ready, print the URL, maybe open a browser.
+
+    Returns the process exit code: 0 when Odoo answers a request that
+    requires a loaded registry, 1 on timeout or when the spawning
+    process is gone (silent — Odoo's own logs already report boot
+    failures). After the response, the echo is held back for
+    ``READY_DELAY`` seconds so Odoo's own startup log lines land first.
+    The timeout defaults to ``DEFAULT_TIMEOUT`` seconds and can be
+    overridden with the ``OSH_URL_WATCH_TIMEOUT`` environment variable.
+    """
+    try:
+        timeout = float(os.environ.get("OSH_URL_WATCH_TIMEOUT", DEFAULT_TIMEOUT))
+    except ValueError:
+        timeout = DEFAULT_TIMEOUT
+    # A request pinned to the database blocks on the registry while
+    # modules load, so the first answer means Odoo is really serving.
+    # Without a database name there is nothing to initialize; any
+    # answer is good enough.
+    path = f"/web/login?db={quote(db_name)}" if db_name else "/web/health"
+    # The sidecar's parent is the `osh` process that execs Odoo — same
+    # PID before and after the exec. If it is gone, this watcher is a
+    # leftover from a previous run and must stay silent.
+    if not wait_for_http(port, path, timeout=timeout, parent_pid=os.getppid()):
+        return 1
+    time.sleep(READY_DELAY)
+    subdomain = _db_subdomain(db_name)
+    host = f"{subdomain}.localhost" if subdomain else "localhost"
+    url = f"http://{host}:{port}"
+    click.echo(f"\n🚀 Odoo ready: {url}", err=True)
+    if open_browser:
+        webbrowser.open(url)
+    return 0
+
+
+def wait_for_http(
     port,
+    path,
     *,
     host="127.0.0.1",
     timeout=DEFAULT_TIMEOUT,
     interval=POLL_INTERVAL,
     parent_pid=None,
 ):
-    """Poll until *host:port* accepts a TCP connection; return success.
+    """Poll until a ``GET path`` on *host:port* gets an HTTP response.
+
+    Any HTTP status counts as ready — the point is that the server is
+    dispatching requests, not that this particular page exists. A bare
+    TCP accept is not enough: Odoo binds the socket before the registry
+    is loaded, so connections succeed while the database is still
+    initializing. The db-bound probe stalls on the registry lock and
+    its response only arrives once module loading finished.
 
     When *parent_pid* is given, stop polling as soon as the spawning
     process is gone: the sidecar is detached, so it is reparented the
@@ -137,47 +191,24 @@ def wait_for_port(
     remains the bound there.)
     """
     deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
+    while True:
         if parent_pid is not None and os.getppid() != parent_pid:
             return False
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        conn = http.client.HTTPConnection(
+            host, port, timeout=min(REQUEST_TIMEOUT, remaining)
+        )
         try:
-            with socket.create_connection((host, port), timeout=1):
-                return True
-        except OSError:
-            time.sleep(interval)
-    return False
-
-
-def watch_url(port, *, db_name=None, open_browser=False):
-    """Poll *port* until Odoo is ready, print the URL, maybe open a browser.
-
-    Returns the process exit code: 0 when the port became ready, 1 on
-    timeout or when the spawning process is gone (silent — Odoo's own
-    logs already report boot failures). Once the port accepts
-    connections, the echo is held back for ``READY_DELAY`` seconds so
-    Odoo's own "HTTP service running" log lines land first. The timeout
-    defaults to ``DEFAULT_TIMEOUT`` seconds and can be overridden with
-    the ``OSH_URL_WATCH_TIMEOUT`` environment variable.
-    """
-    try:
-        timeout = float(os.environ.get("OSH_URL_WATCH_TIMEOUT", DEFAULT_TIMEOUT))
-    except ValueError:
-        timeout = DEFAULT_TIMEOUT
-    # The sidecar's parent is the `osh` process that execs Odoo — same
-    # PID before and after the exec. If it is gone, this watcher is a
-    # leftover from a previous run and must stay silent.
-    if not wait_for_port(port, timeout=timeout, parent_pid=os.getppid()):
-        return 1
-    # Odoo accepts connections just before logging that the HTTP service
-    # is running — let those lines land before printing the URL.
-    time.sleep(READY_DELAY)
-    subdomain = _db_subdomain(db_name)
-    host = f"{subdomain}.localhost" if subdomain else "localhost"
-    url = f"http://{host}:{port}"
-    click.echo(f"\n🚀 Odoo ready: {url}", err=True)
-    if open_browser:
-        webbrowser.open(url)
-    return 0
+            conn.request("GET", path)
+            conn.getresponse().read()
+            return True
+        except (OSError, http.client.HTTPException):
+            pass
+        finally:
+            conn.close()
+        time.sleep(min(interval, max(0.0, deadline - time.monotonic())))
 
 
 def _db_subdomain(db_name):
