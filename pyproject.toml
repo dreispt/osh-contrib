@@ -11,7 +11,7 @@
 # let the resolver fetch `osh` from PyPI.
 [project]
 name = "osh-contrib"
-version = "0.1.1"
+version = "0.2.0"
 description = "Contrib plugins for the osh CLI (Odoo Shell)"
 authors = [
     {name = "Daniel Reis"}
