@@ -189,3 +189,47 @@ def capture_update(monkeypatch):
         or 0,
     )
     return calls
+
+
+@pytest.fixture
+def capture_install(monkeypatch, pg_db):
+    """Replace ``core.run_install`` with a recorder and state simulator.
+
+    The fake marks the requested modules ``installed`` — like the real
+    ``odoo -i`` would — creating the module and config tables when the
+    database is not initialized yet, so the command's post-run
+    verification and fingerprint writes behave realistically.
+    """
+    from osh_update import core
+
+    calls = []
+
+    def _fake(modules, db_name, **kwargs):
+        calls.append((modules, db_name, kwargs))
+        if kwargs.get("dry_run"):
+            return 0
+        pg_db.psql(
+            db_name,
+            "CREATE TABLE IF NOT EXISTS ir_module_module "
+            "(name varchar, state varchar, latest_version varchar, "
+            "shortdesc jsonb);"
+            "CREATE TABLE IF NOT EXISTS ir_config_parameter "
+            "(key varchar UNIQUE, value text)",
+        )
+        placeholders = ", ".join(f":'mod{i}'" for i in range(len(modules)))
+        inserts = "".join(
+            "INSERT INTO ir_module_module (name, state) "
+            f"SELECT :'mod{i}', 'installed' WHERE NOT EXISTS "
+            f"(SELECT 1 FROM ir_module_module WHERE name = :'mod{i}');"
+            for i in range(len(modules))
+        )
+        pg_db.psql(
+            db_name,
+            "UPDATE ir_module_module SET state='installed' "
+            f"WHERE name IN ({placeholders});" + inserts,
+            {f"mod{i}": m for i, m in enumerate(modules)},
+        )
+        return 0
+
+    monkeypatch.setattr(core, "run_install", _fake)
+    return calls

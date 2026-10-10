@@ -1,4 +1,4 @@
-"""Tests for the ``osh db update`` command."""
+"""Tests for the ``osh apps update``/``osh apps install``/``osh apps list`` commands."""
 
 import json
 
@@ -6,7 +6,7 @@ from click.testing import CliRunner
 from osh.handlers import Env
 
 from osh_update import core, store
-from osh_update.commands import installed, update
+from osh_update.commands import db_installed, db_update, install, list_modules, update
 from osh_update.fingerprint import fingerprint_module
 
 
@@ -398,7 +398,7 @@ def test_update_status_first_run_baselines(
 
     The report lists tracked third-party modules only, but the baseline
     still covers all installed modules — otherwise a later plain
-    ``osh db update`` would flag every upstream module as changed.
+    ``osh apps update`` would flag every upstream module as changed.
     """
     db_name = pg_db.make_odoo_db(
         modules=[("my_mod", "installed"), ("base", "installed")]
@@ -548,11 +548,165 @@ def test_post_restore_baselines_active_modules_only(in_project, module_dir, pg_d
     }
 
 
-# ``osh db installed`` -------------------------------------------------------
+# ``osh apps install`` -------------------------------------------------------
+
+
+def test_install_installs_and_baselines(in_project, module_dir, pg_db, capture_install):
+    """``osh apps install`` runs -i, verifies the states and fingerprints.
+
+    On an untracked database the fingerprint write is a full baseline —
+    like ``osh apps update``'s first run — so the earlier-installed
+    modules are not all flagged as changed afterwards.
+    """
+    db_name = pg_db.make_odoo_db(modules=[("base", "installed")])
+    module = module_dir("my_mod")
+    module_dir("other_mod")
+    upstream = _make_upstream_module(in_project)
+
+    result = CliRunner().invoke(install, ["my_mod,other_mod", "--db", db_name])
+
+    assert result.exit_code == 0, result.output
+    assert capture_install == [
+        (
+            ["my_mod", "other_mod"],
+            db_name,
+            {"compose_file": None, "dry_run": False},
+        )
+    ]
+    assert "Installed 2 module(s)" in result.output
+    assert _stored_fingerprints(pg_db, db_name) == {
+        "my_mod": fingerprint_module(module),
+        "other_mod": fingerprint_module(in_project / "other_mod"),
+        "base": fingerprint_module(upstream),
+    }
+
+
+def test_install_updates_existing_fingerprints(
+    in_project, module_dir, pg_db, capture_install
+):
+    """On a tracked database only the installed modules' entries update."""
+    db_name = pg_db.make_odoo_db(modules=[("old_mod", "installed")])
+    module_dir("my_mod")
+    _store_fingerprints(pg_db, db_name, {"old_mod": "deadbeef"})
+
+    result = CliRunner().invoke(install, ["my_mod", "--db", db_name])
+
+    assert result.exit_code == 0, result.output
+    assert capture_install[0][0] == ["my_mod"]
+    stored = _stored_fingerprints(pg_db, db_name)
+    assert stored["old_mod"] == "deadbeef"
+    assert stored["my_mod"] == fingerprint_module(in_project / "my_mod")
+
+
+def test_install_skips_already_installed(
+    in_project, module_dir, pg_db, capture_install
+):
+    """Installed modules are reported and left out of the -i run."""
+    db_name = pg_db.make_odoo_db(modules=[("my_mod", "installed")])
+    module_dir("new_mod")
+
+    result = CliRunner().invoke(install, ["my_mod,new_mod", "--db", db_name])
+
+    assert result.exit_code == 0, result.output
+    assert "Already installed" in result.output
+    assert "my_mod" in result.output
+    assert "osh apps update" in result.output
+    assert capture_install == [
+        (["new_mod"], db_name, {"compose_file": None, "dry_run": False})
+    ]
+
+
+def test_install_all_installed_is_a_noop(in_project, pg_db, capture_install):
+    """Requesting only installed modules reports and runs nothing."""
+    db_name = pg_db.make_odoo_db(modules=[("my_mod", "installed")])
+
+    result = CliRunner().invoke(install, ["my_mod", "--db", db_name])
+
+    assert result.exit_code == 0, result.output
+    assert "Already installed" in result.output
+    assert capture_install == []
+
+
+def test_install_on_uninitialized_db(in_project, module_dir, pg_db, capture_install):
+    """Installing into a database without Odoo tables bootstraps it."""
+    db_name = pg_db.create()
+
+    result = CliRunner().invoke(install, ["base", "--db", db_name])
+
+    assert result.exit_code == 0, result.output
+    assert capture_install == [
+        (["base"], db_name, {"compose_file": None, "dry_run": False})
+    ]
+
+
+def test_install_dry_run(in_project, module_dir, pg_db, capture_install):
+    """--dry-run lists the modules and runs the dry-run odoo command."""
+    db_name = pg_db.make_odoo_db()
+    module_dir("my_mod")
+
+    result = CliRunner().invoke(install, ["my_mod", "--db", db_name, "--dry-run"])
+
+    assert result.exit_code == 0, result.output
+    assert "Would install (1):\nmy_mod" in result.output
+    assert capture_install == [
+        (["my_mod"], db_name, {"compose_file": None, "dry_run": True})
+    ]
+    assert _stored_fingerprints(pg_db, db_name) is None
+
+
+def test_install_reports_failure(in_project, pg_db, monkeypatch):
+    """A non-zero odoo exit becomes a clear error."""
+    db_name = pg_db.make_odoo_db()
+    monkeypatch.setattr(core, "run_install", lambda *a, **k: 1)
+
+    result = CliRunner().invoke(install, ["my_mod", "--db", db_name])
+
+    assert result.exit_code != 0
+    assert "odoo -i failed (exit 1)" in result.output
+
+
+def test_install_detects_silent_failure(in_project, pg_db, monkeypatch):
+    """A zero exit without a state change is still reported as failure."""
+    db_name = pg_db.make_odoo_db(modules=[("my_mod", "uninstalled")])
+    monkeypatch.setattr(core, "run_install", lambda *a, **k: 0)
+
+    result = CliRunner().invoke(install, ["my_mod", "--db", db_name])
+
+    assert result.exit_code != 0
+    assert "were not installed" in result.output
+
+
+def test_install_fails_on_missing_db(in_project, pg_db):
+    """A database that does not exist reports a clean error."""
+    result = CliRunner().invoke(install, ["my_mod", "--db", pg_db.name()])
+
+    assert result.exit_code != 0
+    assert "does not exist" in result.output
+
+
+def test_install_requires_modules(in_project):
+    result = CliRunner().invoke(install, [])
+    assert result.exit_code != 0
+
+
+def test_install_rejects_blank_list(in_project):
+    result = CliRunner().invoke(install, [" , "])
+    assert result.exit_code != 0
+    assert "No module names given" in result.output
+
+
+def test_install_outside_project(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(install, ["my_mod"])
+    assert result.exit_code == 0
+    assert "Not inside an Osh project" in result.output
+
+
+# ``osh apps list`` ----------------------------------------------------------
 
 
 def test_installed_lists_modules_with_version_and_state(in_project, pg_db):
-    """``osh db installed`` lists non-uninstalled modules with their state."""
+    """``osh apps list`` lists non-uninstalled modules with their state."""
     db_name = pg_db.make_odoo_db(
         modules=[
             ("base", "installed", "19.0.1.0.0"),
@@ -561,7 +715,7 @@ def test_installed_lists_modules_with_version_and_state(in_project, pg_db):
         ]
     )
 
-    result = CliRunner().invoke(installed, ["--db", db_name])
+    result = CliRunner().invoke(list_modules, ["--db", db_name])
 
     assert result.exit_code == 0, result.output
     lines = result.output.splitlines()
@@ -586,7 +740,7 @@ def test_installed_long_adds_summary_column(in_project, pg_db):
         ]
     )
 
-    result = CliRunner().invoke(installed, ["--db", db_name, "--long"])
+    result = CliRunner().invoke(list_modules, ["--db", db_name, "--long"])
 
     assert result.exit_code == 0, result.output
     assert "description" in result.output.splitlines()[0]
@@ -596,7 +750,7 @@ def test_installed_long_adds_summary_column(in_project, pg_db):
 
 def test_installed_fails_on_missing_db(in_project, pg_db):
     """A database that does not exist reports a clean error."""
-    result = CliRunner().invoke(installed, ["--db", pg_db.name()])
+    result = CliRunner().invoke(list_modules, ["--db", pg_db.name()])
 
     assert result.exit_code != 0
     assert "does not exist" in result.output
@@ -606,7 +760,7 @@ def test_installed_rejects_non_odoo_database(in_project, pg_db):
     """A database without ``ir_module_module`` gets a clear error."""
     db_name = pg_db.create()
 
-    result = CliRunner().invoke(installed, ["--db", db_name])
+    result = CliRunner().invoke(list_modules, ["--db", db_name])
 
     assert result.exit_code != 0
     assert "not an initialized Odoo database" in result.output
@@ -616,7 +770,44 @@ def test_installed_reports_empty_registry(in_project, pg_db):
     """An Odoo database with no installed modules says so."""
     db_name = pg_db.make_odoo_db(modules=[("gone_mod", "uninstalled")])
 
-    result = CliRunner().invoke(installed, ["--db", db_name])
+    result = CliRunner().invoke(list_modules, ["--db", db_name])
 
     assert result.exit_code == 0, result.output
     assert "No modules installed" in result.output
+
+
+# Deprecated ``osh db`` spellings ----------------------------------------------
+
+
+def test_db_update_deprecated_warns_and_runs(
+    in_project, module_dir, pg_db, capture_update
+):
+    """``osh db update`` warns it is deprecated and still updates."""
+    db_name = pg_db.make_odoo_db(modules=[("my_mod", "installed")])
+    module_dir("my_mod")
+    _store_fingerprints(pg_db, db_name, {"my_mod": "deadbeef"})
+
+    result = CliRunner().invoke(db_update, ["--db", db_name])
+
+    assert result.exit_code == 0, result.output
+    assert "'osh db update' is deprecated" in result.output
+    assert "osh apps update" in result.output
+    assert capture_update == [
+        (
+            ["my_mod"],
+            db_name,
+            {"compose_file": None, "dry_run": False},
+        )
+    ]
+
+
+def test_db_installed_deprecated_warns_and_runs(in_project, pg_db):
+    """``osh db installed`` warns it is deprecated and still lists."""
+    db_name = pg_db.make_odoo_db(modules=[("my_mod", "installed", "1.0")])
+
+    result = CliRunner().invoke(db_installed, ["--db", db_name])
+
+    assert result.exit_code == 0, result.output
+    assert "'osh db installed' is deprecated" in result.output
+    assert "osh apps list" in result.output
+    assert "my_mod" in result.output

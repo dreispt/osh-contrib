@@ -1,4 +1,4 @@
-"""PostgreSQL-backed state for ``osh db update`` and ``osh db installed``.
+"""PostgreSQL-backed state for ``osh apps update`` and ``osh apps list``.
 
 Module fingerprints are stored in the target database itself as an
 ``ir.config_parameter`` record (``osh.module_fingerprints``, a JSON
