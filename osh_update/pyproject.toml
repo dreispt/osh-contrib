@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "osh-update"
-version = "0.1.1"
-description = "Update project modules whose code changed since the last update."
+version = "0.2.0"
+description = "Install modules and update the ones whose code changed since the last update."
 authors = [
     {name = "Daniel Reis"}
 ]
@@ -29,9 +29,15 @@ osh_update = "osh_update"
 [tool.osh]
 extends = ["backup.restore"]
 
-[tool.osh.group_commands.db]
+[tool.osh.group_commands.apps]
+install = "Install Odoo modules in a database."
+list = "List installed modules in a database."
 update = "Update project modules whose code changed."
-installed = "List installed modules in a database."
+
+# Deprecated spellings — kept working, hidden from `osh db --help`.
+[tool.osh.group_commands.db]
+installed = {help = "Deprecated — use 'osh apps list'.", hidden = true}
+update = {help = "Deprecated — use 'osh apps update'.", hidden = true}
 
 [tool.setuptools]
 package-dir = {"osh_update" = "."}

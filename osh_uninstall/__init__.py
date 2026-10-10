@@ -1,15 +1,20 @@
 """osh_uninstall — uninstall Odoo modules from a database.
 
-Provides the ``osh db uninstall`` command: it validates the requested
+Provides the ``osh apps uninstall`` command: it validates the requested
 comma-separated module list against the target database's
 ``ir_module_module`` table, previews the dependent modules that will also
 be removed, asks for confirmation, and performs the removal by piping a
 ``button_immediate_uninstall`` call into ``osh odoo shell``. Module states
 are re-checked afterwards so a silently swallowed failure never reports
-success.
+success. The former ``osh db uninstall`` spelling remains as a hidden
+deprecated alias.
 
 The command is declared under ``[tool.osh]`` in ``pyproject.toml``, so the
-module is imported lazily — only when ``osh db uninstall`` actually runs.
+module is imported lazily — only when ``osh apps uninstall`` (or the
+deprecated ``osh db uninstall``) actually runs.
 """
 
-from .commands import DbUninstall  # noqa: F401 — re-exported for discovery
+from .commands import (  # noqa: F401 — re-exported for discovery
+    AppsUninstall,
+    DbUninstall,
+)

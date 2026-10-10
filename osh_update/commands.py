@@ -1,13 +1,17 @@
-"""``osh db update`` and ``osh db installed`` handlers.
+"""``osh apps`` module lifecycle commands.
 
-``osh db update`` detects which project modules changed since the last
+``osh apps update`` detects which project modules changed since the last
 update — using fingerprints stored in the target database's
 ``ir.config_parameter`` — and runs ``odoo -u`` on the installed ones. On
 the first run it only records the current fingerprints as a baseline
 without updating anything.
 
-``osh db installed`` lists the modules recorded in a database with their
-installed version and state.
+``osh apps install`` installs modules with ``odoo -i``, and ``osh apps
+list`` lists the modules recorded in a database with their installed
+version and state.
+
+The former ``osh db update``/``osh db installed`` spellings remain
+available as hidden deprecated aliases that warn on use.
 """
 
 import click
@@ -20,7 +24,7 @@ from osh.handlers import CommandHandler
 from . import core, store
 
 
-class DbUpdate(CommandHandler):
+class AppsUpdate(CommandHandler):
     """Update project modules whose code changed since the last update.
 
     Each project module is fingerprinted (code and data files; ``static/``
@@ -33,14 +37,14 @@ class DbUpdate(CommandHandler):
     Examples:
 
     \b
-      osh db update
-      osh db update my_module other_module
-      osh db update --all
-      osh db update --status
-      osh db update -d otherdb --dry-run
+      osh apps update
+      osh apps update my_module other_module
+      osh apps update --all
+      osh apps update --status
+      osh apps update -d otherdb --dry-run
     """
 
-    _cli_name = "db.update"
+    _cli_name = "apps.update"
 
     modules = ()
     db_name = None
@@ -145,7 +149,7 @@ class DbUpdate(CommandHandler):
         )
 
 
-class DbInstalled(CommandHandler):
+class AppsList(CommandHandler):
     """List the modules recorded in a database, with version and state.
 
     Reads ``ir_module_module`` — every module whose state is not
@@ -155,12 +159,12 @@ class DbInstalled(CommandHandler):
     Examples:
 
     \b
-      osh db installed
-      osh db installed -l
-      osh db installed -d otherdb
+      osh apps list
+      osh apps list -l
+      osh apps list -d otherdb
     """
 
-    _cli_name = "db.installed"
+    _cli_name = "apps.list"
 
     db_name = None
     long = False
@@ -203,7 +207,112 @@ class DbInstalled(CommandHandler):
             echo.output("  ".join(v.ljust(w) for v, w in zip(row, widths)))
 
 
+class AppsInstall(CommandHandler):
+    """Install Odoo modules in a database.
+
+    MODULES is a comma-separated list of module technical names, like the
+    ``-i``/``--init`` option — dependencies are installed automatically.
+    The database does not need to be initialized: ``odoo -i`` bootstraps
+    it (``base`` included).
+
+    Modules already installed are reported and skipped — update them with
+    ``osh apps update`` instead. After the run the module states are
+    re-checked, so a module Odoo silently skipped reports an error
+    instead of a false success. On success the fingerprints of the
+    installed project modules are recorded, so a later ``osh apps
+    update`` does not update them again.
+
+    Examples:
+
+    \b
+      osh apps install my_module
+      osh apps install mod_a,mod_b
+      osh apps install my_module -d otherdb
+      osh apps install my_module --dry-run
+    """
+
+    _cli_name = "apps.install"
+
+    modules = ""
+    db_name = None
+    dry_run = False
+    compose_file = None
+
+    @click.argument("modules")
+    @click.option(
+        "-d",
+        "--db",
+        "db_name",
+        help="Database to install into " "(default: the resolved branch database).",
+    )
+    @click.option(
+        "--dry-run",
+        is_flag=True,
+        help="Show the module list and the odoo -i command " "without executing it.",
+    )
+    @click.option(
+        "--compose-file",
+        default=None,
+        envvar="OSH_COMPOSE_FILE",
+        help="Docker Compose file to use (e.g. devel.yaml for Doodba).",
+    )
+    def run(self):
+        names = sorted({n.strip() for n in self.modules.split(",") if n.strip()})
+        if not names:
+            raise click.ClickException("No module names given.")
+
+        base = find_project_root(required=True)
+        db_name = (
+            sanitize_db_name(self.db_name)
+            if self.db_name
+            else resolve_db_name_for_run(base, ctx=self.ctx)
+        )
+        if not db_exists(base, db_name, ctx=self.ctx):
+            raise click.ClickException(f"Database '{db_name}' does not exist.")
+
+        core.install_and_record(
+            base,
+            db_name,
+            names,
+            compose_file=self.compose_file,
+            dry_run=self.dry_run,
+            ctx=self.ctx,
+        )
+
+
+class DbInstalled(AppsList):
+    """Deprecated alias of ``osh apps list``, kept for compatibility."""
+
+    _cli_name = "db.installed"
+    _cli_hidden = True
+
+    def run(self):
+        echo.warning(
+            "'osh db installed' is deprecated — use 'osh apps list'.",
+            err=True,
+        )
+        super().run()
+
+
+class DbUpdate(AppsUpdate):
+    """Deprecated alias of ``osh apps update``, kept for compatibility."""
+
+    _cli_name = "db.update"
+    _cli_hidden = True
+
+    def run(self):
+        echo.warning(
+            "'osh db update' is deprecated — use 'osh apps update'.",
+            err=True,
+        )
+        super().run()
+
+
 #: Standalone commands — used by tests; the CLI wires the same handlers
-#: through the ``[group_commands.db]`` declarations.
-update = handler_command("update", DbUpdate)
-installed = handler_command("installed", DbInstalled)
+#: through the ``[group_commands.apps]``/``[group_commands.db]``
+#: declarations.
+install = handler_command("install", AppsInstall)
+list_modules = handler_command("list", AppsList)
+update = handler_command("update", AppsUpdate)
+db_installed = handler_command("installed", DbInstalled)
+db_update = handler_command("update", DbUpdate)

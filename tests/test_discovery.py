@@ -8,6 +8,7 @@ needed. The loader-level tests require the plugins installed in the test
 environment (``pip install -e .`` — the repo's bundle distribution).
 """
 
+import re
 import sys
 from pathlib import Path
 
@@ -144,3 +145,31 @@ def test_declared_extensions_are_subclasses(installed):
                 and "_cli_name" not in impl.__dict__
             ]
             assert extensions, f"{pkg} extends '{target}' but exposes no subclass"
+
+
+def _listed_commands(output):
+    """Return the command names a group ``--help`` lists in its rows."""
+    return {
+        match.group(1)
+        for line in output.splitlines()
+        if (match := re.match(r"^  ([a-z][a-z0-9_-]*)  +\S", line))
+    }
+
+
+def test_apps_group_on_the_cli(installed):
+    """``osh apps`` lists the module lifecycle; ``osh db`` hides the old spellings."""
+    from click.testing import CliRunner
+    from osh.cli import main
+
+    runner = CliRunner()
+
+    result = runner.invoke(main, ["apps", "--help"])
+    assert result.exit_code == 0, result.output
+    assert {"install", "list", "uninstall", "update"} <= _listed_commands(result.output)
+
+    result = runner.invoke(main, ["db", "--help"])
+    assert result.exit_code == 0, result.output
+    listed = _listed_commands(result.output)
+    assert "update" not in listed
+    assert "installed" not in listed
+    assert "uninstall" not in listed

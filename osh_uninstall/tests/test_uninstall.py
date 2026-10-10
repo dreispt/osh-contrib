@@ -1,9 +1,9 @@
-"""Tests for the ``osh db uninstall`` command."""
+"""Tests for the ``osh apps uninstall`` command."""
 
 from click.testing import CliRunner
 
 from osh_uninstall import core, store
-from osh_uninstall.commands import uninstall
+from osh_uninstall.commands import db_uninstall, uninstall
 
 
 def _add_dependency(pg_db, db_name, module, depends_on):
@@ -207,3 +207,18 @@ def test_removal_set_with_quoted_name(in_project, pg_db):
     result = store.get_removal_set(in_project, db_name, ["we'ird", "real_mod"])
 
     assert result == ["real_mod"]
+
+
+# Deprecated ``osh db uninstall`` spelling -------------------------------------
+
+
+def test_db_uninstall_deprecated_warns_and_runs(in_project, pg_db, capture_uninstall):
+    """``osh db uninstall`` warns it is deprecated and still uninstalls."""
+    db_name = pg_db.make_odoo_db(modules=[("my_mod", "installed")])
+
+    result = CliRunner().invoke(db_uninstall, ["my_mod", "--db", db_name, "--yes"])
+
+    assert result.exit_code == 0, result.output
+    assert "'osh db uninstall' is deprecated" in result.output
+    assert "osh apps uninstall" in result.output
+    assert capture_uninstall == [(["my_mod"], db_name, {})]
