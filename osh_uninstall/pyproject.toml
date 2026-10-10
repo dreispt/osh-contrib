@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "osh-uninstall"
-version = "0.1.0"
+version = "0.2.0"
 description = "Uninstall Odoo modules — and their dependents — from a database."
 authors = [
     {name = "Daniel Reis"}
@@ -26,8 +26,12 @@ tests = [
 [project.entry-points."osh.plugins"]
 osh_uninstall = "osh_uninstall"
 
-[tool.osh.group_commands.db]
+[tool.osh.group_commands.apps]
 uninstall = "Uninstall Odoo modules from a database."
+
+# Deprecated spelling — kept working, hidden from `osh db --help`.
+[tool.osh.group_commands.db]
+uninstall = {help = "Deprecated — use 'osh apps uninstall'.", hidden = true}
 
 [tool.setuptools]
 package-dir = {"osh_uninstall" = "."}

@@ -1,10 +1,13 @@
-"""``osh db uninstall`` handler.
+"""``osh apps uninstall`` handler.
 
 Removes installed modules — and their installed dependents — from a
 database by piping a ``button_immediate_uninstall`` call into
 ``osh odoo shell``. A dependency preview is shown for confirmation, and
 the module states are re-checked afterwards so a silently swallowed
 failure never reports success.
+
+The former ``osh db uninstall`` spelling remains available as a hidden
+deprecated alias that warns on use.
 """
 
 import time
@@ -19,7 +22,7 @@ from osh.handlers import CommandHandler
 from . import core, store
 
 
-class DbUninstall(CommandHandler):
+class AppsUninstall(CommandHandler):
     """Uninstall Odoo modules from a database.
 
     MODULES is a comma-separated list of module technical names, like the
@@ -29,13 +32,13 @@ class DbUninstall(CommandHandler):
     Examples:
 
     \b
-      osh db uninstall my_module
-      osh db uninstall mod_a,mod_b
-      osh db uninstall my_module -d otherdb --yes
-      osh db uninstall my_module --dry-run
+      osh apps uninstall my_module
+      osh apps uninstall mod_a,mod_b
+      osh apps uninstall my_module -d otherdb --yes
+      osh apps uninstall my_module --dry-run
     """
 
-    _cli_name = "db.uninstall"
+    _cli_name = "apps.uninstall"
 
     modules = ""
     db_name = None
@@ -129,6 +132,22 @@ class DbUninstall(CommandHandler):
         )
 
 
-#: Standalone ``uninstall`` command — used by tests; the CLI wires the same
-#: handler through the ``[group_commands.db]`` declaration.
-uninstall = handler_command("uninstall", DbUninstall)
+class DbUninstall(AppsUninstall):
+    """Deprecated alias of ``osh apps uninstall``, kept for compatibility."""
+
+    _cli_name = "db.uninstall"
+    _cli_hidden = True
+
+    def run(self):
+        echo.warning(
+            "'osh db uninstall' is deprecated — use 'osh apps uninstall'.",
+            err=True,
+        )
+        super().run()
+
+
+#: Standalone commands — used by tests; the CLI wires the same handlers
+#: through the ``[group_commands.apps]``/``[group_commands.db]``
+#: declarations.
+uninstall = handler_command("uninstall", AppsUninstall)
+db_uninstall = handler_command("uninstall", DbUninstall)
