@@ -54,6 +54,63 @@ def module_dir(tmp_project):
     return _make
 
 
+def _git(repo, *args):
+    """Run a git command in *repo*, failing loudly."""
+    subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True)
+
+
+def _git_repo(path):
+    """Create a real git repository at *path*."""
+    path.mkdir(parents=True, exist_ok=True)
+    _git(path, "init")
+    _git(path, "config", "user.email", "x@y")
+    _git(path, "config", "user.name", "x")
+    return path
+
+
+def _make_module(path):
+    """Create an Odoo module directory with a manifest."""
+    path.mkdir(parents=True, exist_ok=True)
+    (path / "__manifest__.py").write_text(f"{{'name': '{path.name}'}}\n")
+    return path
+
+
+@pytest.fixture
+def in_worktree(tmp_path, monkeypatch):
+    """Switch into a linked git worktree of a project with a submodule.
+
+    Returns ``(project, worktree)``: the source repo holds the ``.osh``
+    marker and a ``sub`` submodule providing ``sub_mod``; the worktree is
+    on branch ``wt-feature``, leaves ``sub`` empty (uninitialized) and
+    adds a worktree-local ``wt_mod``.
+    """
+    sub_src = _git_repo(tmp_path / "sub-src")
+    _make_module(sub_src / "sub_mod")
+    _git(sub_src, "add", "-A")
+    _git(sub_src, "commit", "-m", "sub_mod")
+
+    project = _git_repo(tmp_path / "project")
+    (project / ".osh").mkdir()
+    (project / "README").write_text("x")
+    _git(
+        project,
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "add",
+        str(sub_src),
+        "sub",
+    )
+    _git(project, "add", "-A")
+    _git(project, "commit", "-m", "addons")
+
+    worktree = tmp_path / "wt"
+    _git(project, "worktree", "add", "-b", "wt-feature", str(worktree))
+    _make_module(worktree / "wt_mod")
+    monkeypatch.chdir(worktree)
+    return project.resolve(), worktree.resolve()
+
+
 def _psql_argv(db_name, variables=None, extra=()):
     """Build a ``psql`` argv, passing *variables* as ``-v key=value``.
 

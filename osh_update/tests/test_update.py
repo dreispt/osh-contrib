@@ -267,6 +267,56 @@ def test_update_no_submodules_flag(
     assert capture_update[0][0] == ["my_mod"]
 
 
+def test_update_in_worktree_uses_source_fill_ins(in_worktree, pg_db, capture_update):
+    """A module in a dir empty in the worktree — an uninitialized
+    submodule — is discovered from the source checkout: fingerprinted
+    and updated, not reported as missing from disk."""
+    project, worktree = in_worktree
+    db_name = pg_db.make_odoo_db(
+        modules=[("wt_mod", "installed"), ("sub_mod", "installed")]
+    )
+    _store_fingerprints(pg_db, db_name, {"wt_mod": "deadbeef", "sub_mod": "deadbeef"})
+
+    result = CliRunner().invoke(update, ["--db", db_name])
+
+    assert result.exit_code == 0
+    assert "no longer on disk" not in result.output
+    assert capture_update == [
+        (
+            ["sub_mod", "wt_mod"],
+            db_name,
+            {"compose_file": None, "dry_run": False},
+        )
+    ]
+    assert _stored_fingerprints(pg_db, db_name) == {
+        "sub_mod": fingerprint_module(project / "sub" / "sub_mod"),
+        "wt_mod": fingerprint_module(worktree / "wt_mod"),
+    }
+
+
+def test_update_worktree_no_submodules_skips_fill_in(
+    in_worktree, pg_db, capture_update
+):
+    """--no-submodules also excludes modules filled in from the source
+    checkout's nested repositories."""
+    in_worktree  # noqa: B018 — fixture performs the setup
+    db_name = pg_db.make_odoo_db(
+        modules=[("wt_mod", "installed"), ("sub_mod", "installed")]
+    )
+    _store_fingerprints(pg_db, db_name, {"wt_mod": "deadbeef", "sub_mod": "deadbeef"})
+
+    result = CliRunner().invoke(update, ["--db", db_name, "--no-submodules"])
+
+    assert result.exit_code == 0
+    assert capture_update == [
+        (
+            ["wt_mod"],
+            db_name,
+            {"compose_file": None, "dry_run": False},
+        )
+    ]
+
+
 def test_update_positional_modules_force_update(
     in_project, module_dir, pg_db, capture_update
 ):
