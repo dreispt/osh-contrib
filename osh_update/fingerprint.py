@@ -10,7 +10,7 @@ import hashlib
 import os
 from pathlib import Path
 
-from osh.common import discover_addons_paths
+from osh.common import discover_addons_paths, env_root, worktree_source_addons
 
 _HASHED_SUFFIXES = {".py", ".xml", ".csv", ".po", ".pot", ".yaml", ".yml", ".sql"}
 _SKIP_DIRS = {"__pycache__", "static"}
@@ -52,16 +52,33 @@ def discover_modules(base, *, skip_nested=False, upstream=True):
     ``odoo``/``enterprise`` source checkouts or git submodules — are skipped.
     With *upstream* false, only modules inside the upstream Odoo trees
     (``odoo``, ``enterprise``, ``design-themes`` repos) are skipped.
+
+    When *base* is a linked git worktree, source-repository modules filling
+    in for checkout dirs missing or empty in the worktree (uninitialized
+    submodules) are included too — the same set ``osh odoo`` sees through
+    ``--addons-path``. Their nested-repo checks resolve against the source
+    root, and the worktree's own copy shadows a same-named source module.
     """
     modules = {}
     for addon in discover_addons_paths(base):
-        repo = _nested_repo_root(addon, base)
-        if repo and (
-            skip_nested or (not upstream and repo.name in _UPSTREAM_REPO_NAMES)
-        ):
+        if _nested_skip(addon, base, skip_nested=skip_nested, upstream=upstream):
             continue
         modules[addon.name] = addon
+    source = Path(env_root(base)).resolve()
+    if source != Path(base).resolve():
+        for addon in worktree_source_addons(base):
+            if _nested_skip(addon, source, skip_nested=skip_nested, upstream=upstream):
+                continue
+            modules.setdefault(addon.name, addon)
     return modules
+
+
+def _nested_skip(addon, root, *, skip_nested, upstream):
+    """Return True when *addon* sits inside a nested repo *root* filters out."""
+    repo = _nested_repo_root(addon, root)
+    return bool(repo) and (
+        skip_nested or (not upstream and repo.name in _UPSTREAM_REPO_NAMES)
+    )
 
 
 def _nested_repo_root(module_dir, base):
