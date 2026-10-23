@@ -51,6 +51,23 @@ osh apps install mod_a,mod_b -d mydb   # target a specific database
 osh apps install my_module --dry-run   # show the module list, don't run
 ```
 
+`osh apps fingerprint` re-records the stored baseline — rewriting the
+fingerprint map `osh apps update` diffs against, so code changed since the
+last update is no longer flagged. Use it after updating modules outside
+the command (a manual `odoo -u`, a restore carrying a stale map) to accept
+the current code as the new baseline:
+
+```bash
+osh apps fingerprint            # re-record the baseline (asks when a map exists)
+osh apps fingerprint -d mydb    # target a specific database
+osh apps fingerprint --yes      # skip the confirmation prompt
+osh apps fingerprint --dry-run  # report the baseline without writing it
+```
+
+When a fingerprint map is already recorded the command lists the pending
+updates it would mask and asks for confirmation; with no map recorded the
+baseline is written without asking.
+
 And `osh apps list` — a listing of the modules recorded in a database's
 `ir_module_module` table, with their installed version and state
 (`installed`, `to upgrade`, `to remove`, ...):
@@ -85,7 +102,8 @@ later release.
   databases without one, so earlier-installed modules are not all flagged
   as changed by the next `osh apps update`.
 - **Missing on disk:** a module that is installed in the database but no
-  longer exists in the project triggers a warning.
+  longer exists in the project triggers a warning. `osh apps fingerprint`
+  keeps its recorded digest, so the warning survives a re-baseline.
 - **Failure:** if the `odoo -u` run fails, fingerprints are not written, so
   the next `osh apps update` retries the same modules.
 - **`--status`:** reports _tracked third-party_ modules and the ones

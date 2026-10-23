@@ -6,6 +6,9 @@ update — using fingerprints stored in the target database's
 the first run it only records the current fingerprints as a baseline
 without updating anything.
 
+``osh apps fingerprint`` re-records the stored baseline — e.g. after
+modules were updated outside the command.
+
 ``osh apps install`` installs modules with ``odoo -i``, and ``osh apps
 list`` lists the modules recorded in a database with their installed
 version and state.
@@ -145,6 +148,79 @@ class AppsUpdate(CommandHandler):
             dry_run=self.dry_run,
             skip_nested=self.skip_nested,
             per_line=self.per_line,
+            ctx=self.ctx,
+        )
+
+
+class AppsFingerprint(CommandHandler):
+    """Record the current module fingerprints as the update baseline.
+
+    Rewrites the fingerprint map ``osh apps update`` diffs installed
+    modules against — code changed since the last update is no longer
+    flagged for it. Use it after updating modules outside the command —
+    a manual ``odoo -u``, a restore that kept a stale map — to accept
+    the current code as the new baseline.
+
+    When a fingerprint map is already recorded the command lists the
+    pending updates it would mask and asks for confirmation — ``--yes``
+    skips the prompt. With no map recorded yet the baseline is written
+    without asking, like the first ``osh apps update`` run does.
+
+    Examples:
+
+    \b
+      osh apps fingerprint
+      osh apps fingerprint -d otherdb
+      osh apps fingerprint --yes
+      osh apps fingerprint --dry-run
+    """
+
+    _cli_name = "apps.fingerprint"
+
+    db_name = None
+    yes = False
+    dry_run = False
+    skip_nested = False
+
+    @click.option(
+        "-d",
+        "--db",
+        "db_name",
+        help="Database to fingerprint " "(default: the resolved branch database).",
+    )
+    @click.option(
+        "--yes",
+        is_flag=True,
+        help="Do not ask for confirmation before overwriting " "recorded fingerprints.",
+    )
+    @click.option(
+        "--dry-run",
+        is_flag=True,
+        help="Report the baseline that would be recorded " "without writing it.",
+    )
+    @click.option(
+        "--no-submodules",
+        "skip_nested",
+        is_flag=True,
+        help="Skip modules inside nested git repositories "
+        "(e.g. odoo/enterprise source checkouts).",
+    )
+    def run(self):
+        base = find_project_root(required=True)
+        db_name = (
+            sanitize_db_name(self.db_name)
+            if self.db_name
+            else resolve_db_name_for_run(base, ctx=self.ctx)
+        )
+        if not db_exists(base, db_name, ctx=self.ctx):
+            raise click.ClickException(f"Database '{db_name}' does not exist.")
+
+        core.record_baseline(
+            base,
+            db_name,
+            yes=self.yes,
+            dry_run=self.dry_run,
+            skip_nested=self.skip_nested,
             ctx=self.ctx,
         )
 
@@ -311,6 +387,7 @@ class DbUpdate(AppsUpdate):
 #: Standalone commands — used by tests; the CLI wires the same handlers
 #: through the ``[group_commands.apps]``/``[group_commands.db]``
 #: declarations.
+fingerprint = handler_command("fingerprint", AppsFingerprint)
 install = handler_command("install", AppsInstall)
 list_modules = handler_command("list", AppsList)
 update = handler_command("update", AppsUpdate)

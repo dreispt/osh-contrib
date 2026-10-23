@@ -7,8 +7,10 @@ stored in the target database's ``ir.config_parameter``
 that changed. The first run only records a baseline — no update is performed.
 
 Also provides ``osh apps install`` — installing modules with ``odoo -i``
-and recording their fingerprints — and ``osh apps list``, a listing of the
-modules recorded in a database with their installed version and state.
+and recording their fingerprints — ``osh apps fingerprint``, which
+re-records the stored baseline (e.g. after modules were updated outside
+the command), and ``osh apps list``, a listing of the modules recorded in
+a database with their installed version and state.
 The former ``osh db update``/``osh db installed`` spellings remain as
 hidden deprecated aliases.
 
@@ -22,6 +24,7 @@ so the module is imported lazily — only when an ``apps`` or deprecated
 """
 
 from .commands import (  # noqa: F401 — re-exported for discovery
+    AppsFingerprint,
     AppsInstall,
     AppsList,
     AppsUpdate,

@@ -1,4 +1,4 @@
-"""Install/update orchestration for ``osh apps install``/``osh apps update``.
+"""Install/update orchestration for the ``osh apps`` commands.
 
 Detects which installed project modules changed since the last update and
 runs ``odoo -u`` on them through the public ``osh odoo`` CLI; installs
@@ -106,6 +106,54 @@ def detect_targets(
     return changed
 
 
+def record_baseline(
+    base, db_name, *, yes=False, dry_run=False, skip_nested=False, ctx=None
+):
+    """Record the current module fingerprints as the update baseline.
+
+    The baseline covers modules active in the database — ``installed``
+    and ``to upgrade`` — like the first ``osh apps update`` run.
+    Fingerprints stored for installed modules no longer on disk are
+    kept, so ``osh apps update`` still reports them as missing.
+
+    A stored fingerprint map means pending updates would be masked:
+    they are listed and confirmation is asked, unless *yes*. With no
+    stored map the baseline is written without asking.
+    """
+    states = store.get_module_states(base, db_name, ctx=ctx)
+    if states is None:
+        raise click.ClickException(
+            f"Database '{db_name}' is not initialized. Install modules first "
+            f"(e.g. 'osh apps install base -d {db_name}')."
+        )
+    stored = store.read_fingerprints(base, db_name, ctx=ctx)
+    current = fingerprint_project_modules(base, skip_nested=skip_nested)
+
+    baseline = _baseline_mapping(current, states, stored)
+
+    if stored is not None:
+        masked = sorted(n for n, d in baseline.items() if stored.get(n) != d)
+        if masked:
+            echo.warning(
+                "Pending updates will no longer be flagged: " + ", ".join(masked)
+            )
+
+    if dry_run:
+        echo.info(f"Would record fingerprints for {len(baseline)} module(s).")
+        return
+
+    if stored is not None and not yes:
+        if not click.confirm(
+            f"Overwrite the recorded fingerprints in '{db_name}'?",
+            default=False,
+            err=True,
+        ):
+            raise click.exceptions.Exit(0)
+
+    store.write_fingerprints(base, db_name, baseline, ctx=ctx)
+    echo.success(f"Recorded fingerprints for {len(baseline)} module(s) in '{db_name}'.")
+
+
 class RestoreBaseline(resolve("backup.restore")):
     """Extends ``osh backup restore`` — baseline restored dbs lacking one.
 
@@ -137,13 +185,22 @@ class RestoreBaseline(resolve("backup.restore")):
         )
 
 
-def _baseline_mapping(current, states):
-    """Return the ``{module: digest}`` baseline for modules active in *states*."""
-    return {
+def _baseline_mapping(current, states, stored=None):
+    """Return the ``{module: digest}`` baseline for modules active in *states*.
+
+    Digests in *stored* for active modules absent from *current* —
+    installed but no longer on disk — are preserved, so ``osh apps
+    update`` keeps reporting them as missing.
+    """
+    baseline = {
         n: digest
         for n, digest in current.items()
         if states.get(n) in store.ACTIVE_STATES
     }
+    for name, digest in (stored or {}).items():
+        if name not in current and states.get(name) in store.ACTIVE_STATES:
+            baseline[name] = digest
+    return baseline
 
 
 def update_and_record(
