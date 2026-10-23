@@ -6,7 +6,14 @@ from click.testing import CliRunner
 from osh.handlers import Env
 
 from osh_update import core, store
-from osh_update.commands import db_installed, db_update, install, list_modules, update
+from osh_update.commands import (
+    db_installed,
+    db_update,
+    fingerprint,
+    install,
+    list_modules,
+    update,
+)
 from osh_update.fingerprint import fingerprint_module
 
 
@@ -546,6 +553,148 @@ def test_post_restore_baselines_active_modules_only(in_project, module_dir, pg_d
     assert _stored_fingerprints(pg_db, db_name) == {
         "my_mod": fingerprint_module(module)
     }
+
+
+# ``osh apps fingerprint`` ----------------------------------------------------
+
+
+def test_fingerprint_records_baseline_without_asking(
+    in_project, module_dir, pg_db, capture_update
+):
+    """With no stored fingerprints the baseline is written directly."""
+    db_name = pg_db.make_odoo_db(modules=[("my_mod", "installed")])
+    module = module_dir("my_mod")
+    module_dir("not_installed")
+
+    # No input: a confirmation prompt would read EOF and abort.
+    result = CliRunner().invoke(fingerprint, ["--db", db_name])
+
+    assert result.exit_code == 0, result.output
+    assert "Recorded fingerprints" in result.output
+    assert capture_update == []
+    assert _stored_fingerprints(pg_db, db_name) == {
+        "my_mod": fingerprint_module(module)
+    }
+
+
+def test_fingerprint_declined_keeps_stored_map(
+    in_project, module_dir, pg_db, capture_update
+):
+    """Answering no to the confirmation leaves the stored map untouched."""
+    db_name = pg_db.make_odoo_db(modules=[("my_mod", "installed")])
+    module_dir("my_mod")
+    _store_fingerprints(pg_db, db_name, {"my_mod": "deadbeef"})
+
+    result = CliRunner().invoke(fingerprint, ["--db", db_name], input="n\n")
+
+    assert result.exit_code == 0, result.output
+    assert capture_update == []
+    assert _stored_fingerprints(pg_db, db_name) == {"my_mod": "deadbeef"}
+
+
+def test_fingerprint_confirmed_rebaselines_and_warns(in_project, module_dir, pg_db):
+    """Confirming rewrites the map; pending updates it masks are listed."""
+    db_name = pg_db.make_odoo_db(
+        modules=[("my_mod", "installed"), ("synced_mod", "installed")]
+    )
+    module = module_dir("my_mod")
+    synced = module_dir("synced_mod")
+    _store_fingerprints(
+        pg_db,
+        db_name,
+        {"my_mod": "deadbeef", "synced_mod": fingerprint_module(synced)},
+    )
+
+    result = CliRunner().invoke(fingerprint, ["--db", db_name], input="y\n")
+
+    assert result.exit_code == 0, result.output
+    assert "Pending updates will no longer be flagged: my_mod" in result.output
+    assert _stored_fingerprints(pg_db, db_name) == {
+        "my_mod": fingerprint_module(module),
+        "synced_mod": fingerprint_module(synced),
+    }
+
+
+def test_fingerprint_yes_skips_confirmation(in_project, module_dir, pg_db):
+    """--yes overwrites the stored map without prompting."""
+    db_name = pg_db.make_odoo_db(modules=[("my_mod", "installed")])
+    module = module_dir("my_mod")
+    _store_fingerprints(pg_db, db_name, {"my_mod": "deadbeef"})
+
+    result = CliRunner().invoke(fingerprint, ["--db", db_name, "--yes"])
+
+    assert result.exit_code == 0, result.output
+    assert _stored_fingerprints(pg_db, db_name) == {
+        "my_mod": fingerprint_module(module)
+    }
+
+
+def test_fingerprint_keeps_installed_modules_missing_from_disk(
+    in_project, module_dir, pg_db
+):
+    """Installed modules no longer on disk keep their recorded digest."""
+    db_name = pg_db.make_odoo_db(
+        modules=[("my_mod", "installed"), ("gone_mod", "installed")]
+    )
+    module = module_dir("my_mod")
+    _store_fingerprints(pg_db, db_name, {"my_mod": "deadbeef", "gone_mod": "cafebabe"})
+
+    result = CliRunner().invoke(fingerprint, ["--db", db_name, "--yes"])
+
+    assert result.exit_code == 0, result.output
+    assert _stored_fingerprints(pg_db, db_name) == {
+        "my_mod": fingerprint_module(module),
+        "gone_mod": "cafebabe",
+    }
+
+
+def test_fingerprint_drops_inactive_stored_entries(in_project, module_dir, pg_db):
+    """Stored entries for inactive modules are not carried over."""
+    db_name = pg_db.make_odoo_db(
+        modules=[("my_mod", "installed"), ("gone_mod", "uninstalled")]
+    )
+    module = module_dir("my_mod")
+    _store_fingerprints(pg_db, db_name, {"my_mod": "deadbeef", "gone_mod": "cafebabe"})
+
+    result = CliRunner().invoke(fingerprint, ["--db", db_name, "--yes"])
+
+    assert result.exit_code == 0, result.output
+    assert _stored_fingerprints(pg_db, db_name) == {
+        "my_mod": fingerprint_module(module)
+    }
+
+
+def test_fingerprint_dry_run_reports_without_writing(in_project, module_dir, pg_db):
+    """--dry-run reports the baseline and the masked updates, writes nothing."""
+    db_name = pg_db.make_odoo_db(modules=[("my_mod", "installed")])
+    module_dir("my_mod")
+    _store_fingerprints(pg_db, db_name, {"my_mod": "deadbeef"})
+
+    # No input: reaching a prompt would prove --dry-run still asks.
+    result = CliRunner().invoke(fingerprint, ["--db", db_name, "--dry-run"])
+
+    assert result.exit_code == 0, result.output
+    assert "Pending updates will no longer be flagged: my_mod" in result.output
+    assert "Would record fingerprints for 1 module(s)" in result.output
+    assert _stored_fingerprints(pg_db, db_name) == {"my_mod": "deadbeef"}
+
+
+def test_fingerprint_fails_on_uninitialized_db(in_project, pg_db):
+    """A database without ir_module_module produces a helpful error."""
+    db_name = pg_db.create()
+
+    result = CliRunner().invoke(fingerprint, ["--db", db_name])
+
+    assert result.exit_code != 0
+    assert "not initialized" in result.output
+
+
+def test_fingerprint_fails_on_missing_db(in_project, pg_db):
+    """A database that does not exist reports a clean error."""
+    result = CliRunner().invoke(fingerprint, ["--db", pg_db.name()])
+
+    assert result.exit_code != 0
+    assert "does not exist" in result.output
 
 
 # ``osh apps install`` -------------------------------------------------------

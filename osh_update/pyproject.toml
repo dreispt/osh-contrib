@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "osh-update"
-version = "0.2.0"
+version = "0.3.0"
 description = "Install modules and update the ones whose code changed since the last update."
 authors = [
     {name = "Daniel Reis"}
@@ -30,6 +30,7 @@ osh_update = "osh_update"
 extends = ["backup.restore"]
 
 [tool.osh.group_commands.apps]
+fingerprint = "Record module fingerprints as the update baseline."
 install = "Install Odoo modules in a database."
 list = "List installed modules in a database."
 update = "Update project modules whose code changed."
