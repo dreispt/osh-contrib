@@ -15,7 +15,7 @@ requires-python = ">=3.10"
 keywords = ["odoo", "cli", "shell", "development", "osh"]
 dependencies = [
     "click>=8.1",
-    "osh>=1.7.0",
+    "osh>=1.15.0",
 ]
 
 [project.optional-dependencies]
