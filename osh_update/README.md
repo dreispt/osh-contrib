@@ -78,8 +78,8 @@ osh apps list -l            # long listing — include the manifest summary
 osh apps list -d mydb       # target a specific database
 ```
 
-`osh apps update`/`osh apps install` run on the project's active backend
-(`osh <backend> activate` switches it); `--compose-file` is forwarded to
+`osh apps update`/`osh apps install` run on the project's active runtime
+(`osh init <runtime>` switches it); `--compose-file` is forwarded to
 `osh odoo`.
 
 The former `osh db update`/`osh db installed` spellings still work as

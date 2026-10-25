@@ -464,7 +464,7 @@ def test_write_fingerprints_passes_payload_as_psql_variable(in_project, monkeypa
         captured["sql"] = kwargs.get("input")
         return 0, "", ""
 
-    monkeypatch.setattr(store, "run_in_backend", fake_run)
+    monkeypatch.setattr(store, "run_in_runtime", fake_run)
 
     mapping = {"we'ird": "deadbeef"}
     store.write_fingerprints(in_project, "db", mapping)
