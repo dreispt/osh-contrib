@@ -118,7 +118,7 @@ class AppsUninstall(CommandHandler):
                 f"odoo shell uninstall failed (exit {returncode})."
             )
 
-        # The shell's exit code cannot be trusted on every backend (a
+        # The shell's exit code cannot be trusted on every runtime (a
         # tty-backed REPL swallows exceptions), so re-check the states.
         after = store.get_module_states(base, db_name, ctx=self.ctx) or {}
         remaining = [n for n in names if after.get(n) != "uninstalled"]
