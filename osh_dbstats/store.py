@@ -1,14 +1,14 @@
 """PostgreSQL access for ``osh db stats`` and ``osh db vacuum``.
 
-All statements run through ``psql`` via ``osh.db.run_in_backend`` — the
-same backend-routed execution osh core uses for ``db_exists`` and
-friends, so Docker-backed projects run ``psql`` inside the container
+All statements run through ``psql`` via ``osh.db.run_in_runtime`` — the
+same execution core osh routes through the active runtime for
+``db_exists`` and friends, so Docker-backed projects run ``psql`` inside the container
 automatically. Mirrors ``osh_uninstall``'s store module; plugins are
 separate distributions and cannot import each other.
 """
 
 import click
-from osh.db import run_in_backend
+from osh.db import run_in_runtime
 
 
 def query(base, db_name, sql, *, variables=None, ctx=None):
@@ -54,14 +54,14 @@ def _psql(base, db_name, sql, *, variables=None, ctx=None):
     as ``psql -v key=value`` and referenced as ``:'key'`` — are quoted as
     SQL literals by psql itself, never by hand.
 
-    ``run_in_backend`` supplies the ``PG*`` connection variables from the
+    ``run_in_runtime`` supplies the ``PG*`` connection variables from the
     project Odoo config.
     """
     # ON_ERROR_STOP makes psql exit non-zero on SQL errors, like -c does.
     args = ["psql", "-d", db_name, "-t", "-A", "-F", "\t", "-v", "ON_ERROR_STOP=1"]
     for key, value in (variables or {}).items():
         args += ["-v", f"{key}={value}"]
-    returncode, stdout, stderr = run_in_backend(ctx, base, args, input=sql)
+    returncode, stdout, stderr = run_in_runtime(ctx, base, args, input=sql)
     if returncode is None:
         raise click.ClickException("Could not locate `psql`. Is PostgreSQL installed?")
     return returncode, stdout, stderr
