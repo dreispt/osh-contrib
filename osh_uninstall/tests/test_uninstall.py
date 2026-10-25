@@ -190,7 +190,7 @@ def test_removal_set_passes_names_as_psql_variables(in_project, monkeypatch):
         captured["sql"] = kwargs.get("input")
         return 0, "mod_a\n", ""
 
-    monkeypatch.setattr(store, "run_in_runtime", fake_run)
+    monkeypatch.setattr("osh.db.run_in_runtime", fake_run)
 
     result = store.get_removal_set(in_project, "db", ["we'ird", "mod_a"])
 

@@ -10,7 +10,7 @@ distributions and cannot import each other.
 """
 
 import click
-from osh.db import run_in_runtime
+from osh.db import psql, run_in_runtime
 
 # Module states in which ``button_uninstall`` accepts the module.
 REMOVABLE_STATES = ("installed", "to upgrade")
@@ -26,7 +26,7 @@ def get_module_states(base, db_name, ctx=None):
     Returns ``None`` when the table does not exist — the database is not
     an initialized Odoo database.
     """
-    returncode, stdout, stderr = _psql(
+    returncode, stdout, stderr = psql(
         base,
         db_name,
         "SELECT name, state FROM ir_module_module",
@@ -77,7 +77,7 @@ def get_removal_set(base, db_name, names, ctx=None):
         "FROM ir_module_module m JOIN dep ON m.id = dep.id "
         "ORDER BY m.name"
     )
-    returncode, stdout, stderr = _psql(
+    returncode, stdout, stderr = psql(
         base,
         db_name,
         sql,
@@ -91,39 +91,3 @@ def get_removal_set(base, db_name, names, ctx=None):
     return [n for n in stdout.splitlines() if n]
 
 
-def _psql(base, db_name, sql, *, field_separator=None, variables=None, ctx=None):
-    """Run *sql* via psql and return ``(returncode, stdout, stderr)``.
-
-    The SQL is piped through stdin rather than ``-c`` so large statements
-    cannot hit the per-argument size limit. It must also go through stdin
-    for the ``:'key'`` references below to work at all: psql interpolates
-    variables only into input read from stdin or a file, never into
-    ``-c``.
-
-    *variables* are passed as ``psql -v key=value`` assignments so the
-    statement can reference them as ``:'key'`` — psql quotes them as SQL
-    literals using the server connection's escaping rules, so no value
-    ever needs manual escaping.
-
-    Trade-off: ``-v`` values land in the ``psql`` argv, which is
-    world-readable via ``/proc/<pid>/cmdline`` while the query runs. That
-    is acceptable here — the module names already appear in the user's
-    own ``osh db uninstall`` command line. Do not "fix" this with
-    ``\\set`` assignments in the SQL stream: psql meta-command arguments
-    need hand-rolled backslash and quote escaping, reintroducing exactly
-    the bug class ``-v`` removes. If a value ever is sensitive, use
-    ``\\getenv`` (psql 14+) with ``run_in_runtime(env=...)`` instead.
-
-    ``run_in_runtime`` supplies the ``PG*`` connection variables from the
-    project Odoo config.
-    """
-    # ON_ERROR_STOP makes psql exit non-zero on SQL errors, like -c does.
-    args = ["psql", "-d", db_name, "-t", "-A", "-v", "ON_ERROR_STOP=1"]
-    for key, value in (variables or {}).items():
-        args += ["-v", f"{key}={value}"]
-    if field_separator:
-        args += ["-F", field_separator]
-    returncode, stdout, stderr = run_in_runtime(ctx, base, args, input=sql)
-    if returncode is None:
-        raise click.ClickException("Could not locate `psql`. Is PostgreSQL installed?")
-    return returncode, stdout, stderr
