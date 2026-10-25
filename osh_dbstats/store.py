@@ -8,7 +8,7 @@ separate distributions and cannot import each other.
 """
 
 import click
-from osh.db import psql, run_in_runtime
+from osh.db import psql, psql_rows, run_in_runtime
 
 
 def query(base, db_name, sql, *, variables=None, ctx=None):
@@ -17,10 +17,10 @@ def query(base, db_name, sql, *, variables=None, ctx=None):
     Output is ``psql -t -A`` tuples split on tabs — one field list per
     result row. Raises ``ClickException`` on error.
     """
-    returncode, stdout, stderr = psql(base, db_name, sql, field_separator="\t", variables=variables, ctx=ctx)
+    returncode, rows, stderr = psql_rows(base, db_name, sql, field_separator="\t", variables=variables, ctx=ctx)
     if returncode != 0:
         raise click.ClickException(f"Query failed on '{db_name}': {stderr.strip()}")
-    return _rows(stdout)
+    return rows
 
 
 def query_or_none(base, db_name, sql, *, variables=None, ctx=None):
@@ -30,19 +30,15 @@ def query_or_none(base, db_name, sql, *, variables=None, ctx=None):
     versions — where a missing feature must degrade the report rather
     than fail it.
     """
-    returncode, stdout, _ = psql(base, db_name, sql, field_separator="\t", variables=variables, ctx=ctx)
+    returncode, rows, _ = psql_rows(base, db_name, sql, field_separator="\t", variables=variables, ctx=ctx)
     if returncode != 0:
         return None
-    return _rows(stdout)
+    return rows
 
 
 def run_sql(base, db_name, sql, *, ctx=None):
     """Run a statement (e.g. ``VACUUM``) and return ``(returncode, stdout, stderr)``."""
     return psql(base, db_name, sql, field_separator="\t", ctx=ctx)
 
-
-def _rows(stdout):
-    """Split ``psql -t -A -F '\\t'`` output into field lists."""
-    return [line.split("\t") for line in stdout.splitlines() if line]
 
 
