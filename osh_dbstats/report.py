@@ -7,7 +7,7 @@ Odoo watchlist, the filestore size) degrade to ``None``/empty rather
 than failing the report.
 """
 
-from osh.db import resolve_backend, run_in_backend
+from osh.db import resolve_runtime, run_in_runtime
 
 from . import store
 
@@ -78,7 +78,7 @@ def _filestore_size(base, db_name, ctx=None):
     """
     result = {"path": None, "bytes": None}
     try:
-        data_dir = resolve_backend(base).odoo_data_dir(base)
+        data_dir = resolve_runtime(base).odoo_data_dir(base)
         if not data_dir:
             return result
         result["path"] = path = f"{data_dir}/filestore/{db_name}"
@@ -92,8 +92,8 @@ def _filestore_size(base, db_name, ctx=None):
 
 
 def _du(base, path, ctx=None):
-    """Run ``du -sk`` on *path* inside the backend environment."""
-    returncode, stdout, stderr = run_in_backend(ctx, base, ["du", "-sk", path])
+    """Run ``du -sk`` on *path* inside the runtime environment."""
+    returncode, stdout, stderr = run_in_runtime(ctx, base, ["du", "-sk", path])
     return returncode, stdout, stderr
 
 

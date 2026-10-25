@@ -57,7 +57,7 @@ does **not** return space to the operating system.
 
 ## Requirements
 
-- `psql` reachable through the project's active backend — Docker-backed
+- `psql` reachable through the project's active runtime — Docker-backed
   projects run it inside the container automatically.
 - `pg_stat_statements` (optional) for the top-queries section.
 
