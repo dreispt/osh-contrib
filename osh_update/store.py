@@ -4,8 +4,8 @@ Module fingerprints are stored in the target database itself as an
 ``ir.config_parameter`` record (``osh.module_fingerprints``, a JSON
 ``{module: hash}`` map), so they follow the database across copies and
 restores. All access goes through ``psql`` run via
-``osh.db.run_in_backend`` — the same backend-routed execution core uses
-for ``db_exists`` and friends, so Docker-backed projects run ``psql``
+``osh.db.run_in_runtime`` — the same execution core osh routes through
+the active runtime for ``db_exists`` and friends, so Docker-backed projects run ``psql``
 inside the container automatically.
 
 ``osh_uninstall`` carries a near-identical ``_psql`` helper: plugins are
@@ -18,7 +18,7 @@ import json
 
 import click
 from osh import echo
-from osh.db import run_in_backend
+from osh.db import run_in_runtime
 
 FINGERPRINT_PARAM = "osh.module_fingerprints"
 
@@ -157,9 +157,9 @@ def _psql(base, db_name, sql, *, field_separator=None, variables=None, ctx=None)
     SQL stream: psql meta-command arguments need hand-rolled backslash
     and quote escaping, reintroducing exactly the bug class ``-v``
     removes. If a value ever is sensitive, use ``\\getenv`` (psql 14+)
-    with ``run_in_backend(env=...)`` instead.
+    with ``run_in_runtime(env=...)`` instead.
 
-    ``run_in_backend`` supplies the ``PG*`` connection variables from the
+    ``run_in_runtime`` supplies the ``PG*`` connection variables from the
     project Odoo config.
     """
     # ON_ERROR_STOP makes psql exit non-zero on SQL errors, like -c does.
@@ -168,7 +168,7 @@ def _psql(base, db_name, sql, *, field_separator=None, variables=None, ctx=None)
         args += ["-v", f"{key}={value}"]
     if field_separator:
         args += ["-F", field_separator]
-    returncode, stdout, stderr = run_in_backend(ctx, base, args, input=sql)
+    returncode, stdout, stderr = run_in_runtime(ctx, base, args, input=sql)
     if returncode is None:
         raise click.ClickException("Could not locate `psql`. Is PostgreSQL installed?")
     return returncode, stdout, stderr
