@@ -1,15 +1,16 @@
 """PostgreSQL-backed state for ``osh apps uninstall``.
 
 Module states and dependency relations are read directly from the target
-database through ``psql`` run via ``osh.db.run_in_backend`` — the same
-backend-routed execution osh core uses for ``db_exists`` and friends, so
+database through ``psql`` run via ``osh.db.run_in_runtime`` — the same
+execution core osh routes through the active runtime for ``db_exists``
+and friends, so
 Docker-backed projects run ``psql`` inside the container automatically.
 This mirrors ``osh_update``'s store module; plugins are separate
 distributions and cannot import each other.
 """
 
 import click
-from osh.db import run_in_backend
+from osh.db import run_in_runtime
 
 # Module states in which ``button_uninstall`` accepts the module.
 REMOVABLE_STATES = ("installed", "to upgrade")
@@ -111,9 +112,9 @@ def _psql(base, db_name, sql, *, field_separator=None, variables=None, ctx=None)
     ``\\set`` assignments in the SQL stream: psql meta-command arguments
     need hand-rolled backslash and quote escaping, reintroducing exactly
     the bug class ``-v`` removes. If a value ever is sensitive, use
-    ``\\getenv`` (psql 14+) with ``run_in_backend(env=...)`` instead.
+    ``\\getenv`` (psql 14+) with ``run_in_runtime(env=...)`` instead.
 
-    ``run_in_backend`` supplies the ``PG*`` connection variables from the
+    ``run_in_runtime`` supplies the ``PG*`` connection variables from the
     project Odoo config.
     """
     # ON_ERROR_STOP makes psql exit non-zero on SQL errors, like -c does.
@@ -122,7 +123,7 @@ def _psql(base, db_name, sql, *, field_separator=None, variables=None, ctx=None)
         args += ["-v", f"{key}={value}"]
     if field_separator:
         args += ["-F", field_separator]
-    returncode, stdout, stderr = run_in_backend(ctx, base, args, input=sql)
+    returncode, stdout, stderr = run_in_runtime(ctx, base, args, input=sql)
     if returncode is None:
         raise click.ClickException("Could not locate `psql`. Is PostgreSQL installed?")
     return returncode, stdout, stderr
