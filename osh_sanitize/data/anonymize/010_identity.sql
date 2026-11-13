@@ -223,6 +223,33 @@ BEGIN
     END IF;
 END $$;
 
+-- Chatter that survives the trim retention — bodies, subjects and senders.
+DO $$
+BEGIN
+    IF to_regclass('mail_message') IS NULL THEN
+        RETURN;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'mail_message' AND column_name = 'body') THEN
+        UPDATE mail_message SET body = '<p>Message ' || id || '</p>'
+         WHERE body IS NOT NULL AND body <> '';
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'mail_message' AND column_name = 'subject') THEN
+        UPDATE mail_message SET subject = 'Message ' || id WHERE subject IS NOT NULL;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'mail_message' AND column_name = 'email_from') THEN
+        UPDATE mail_message SET email_from = 'message' || id || '@example.local'
+         WHERE email_from IS NOT NULL;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'mail_message' AND column_name = 'record_name') THEN
+        UPDATE mail_message SET record_name = repeat('x', length(record_name))
+         WHERE record_name IS NOT NULL;
+    END IF;
+END $$;
+
 -- Field history that survives the trim retention — tracked old/new values.
 DO $$
 BEGIN
