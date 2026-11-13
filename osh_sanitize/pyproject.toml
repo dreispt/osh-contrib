@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=70.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "osh-sanitize"
+version = "0.1.0"
+description = "Scrub PII and trim low-value rows from Odoo databases."
+authors = [
+    {name = "Daniel Reis"}
+]
+readme = "README.md"
+license = {text = "LGPL-3.0-only"}
+requires-python = ">=3.10"
+keywords = ["odoo", "cli", "shell", "development", "osh"]
+dependencies = [
+    "click>=8.1",
+    "osh>=1.16.0",
+]
+
+[project.optional-dependencies]
+tests = [
+    "pytest>=7.0",
+]
+
+[project.entry-points."osh.plugins"]
+osh_sanitize = "osh_sanitize"
+
+[tool.osh]
+extends = ["backup.restore"]
+
+[tool.osh.group_commands.db]
+sanitize = "Scrub PII and delete low-value rows from a database."
+
+[tool.setuptools]
+package-dir = {"osh_sanitize" = "."}
+packages = ["osh_sanitize", "osh_sanitize.data"]
+
+# Ship pyproject.toml and the bundled SQL script sets inside the package —
+# osh reads the plugin's [tool.osh] declarations from it, and
+# resolve_sql_scripts reads the bundled layer via importlib.resources.
+[tool.setuptools.package-data]
+osh_sanitize = ["pyproject.toml"]
+"osh_sanitize.data" = ["anonymize/*.sql", "trim/*.sql"]
