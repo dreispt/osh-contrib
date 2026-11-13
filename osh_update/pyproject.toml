@@ -28,6 +28,7 @@ osh_update = "osh_update"
 
 [tool.osh]
 extends = ["backup.restore"]
+min_osh = "1.15.0"
 
 [tool.osh.group_commands.apps]
 fingerprint = "Record module fingerprints as the update baseline."

@@ -10,7 +10,7 @@ distributions and cannot import each other.
 """
 
 import click
-from osh.db import psql, run_in_runtime
+from osh.db import psql
 
 # Module states in which ``button_uninstall`` accepts the module.
 REMOVABLE_STATES = ("installed", "to upgrade")
@@ -89,5 +89,3 @@ def get_removal_set(base, db_name, names, ctx=None):
             f"Could not read module dependencies from '{db_name}': " f"{stderr.strip()}"
         )
     return [n for n in stdout.splitlines() if n]
-
-
