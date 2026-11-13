@@ -15,7 +15,7 @@ requires-python = ">=3.10"
 keywords = ["odoo", "cli", "shell", "development", "osh"]
 dependencies = [
     "click>=8.1",
-    "osh>=1.14.0",
+    "osh>=1.15.0",
 ]
 
 [project.optional-dependencies]
@@ -28,6 +28,7 @@ osh_update = "osh_update"
 
 [tool.osh]
 extends = ["backup.restore"]
+min_osh = "1.15.0"
 
 [tool.osh.group_commands.apps]
 fingerprint = "Record module fingerprints as the update baseline."
