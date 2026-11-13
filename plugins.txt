@@ -12,3 +12,4 @@ osh-echohttp @ git+https://github.com/dreispt/osh-contrib.git#subdirectory=osh_e
 osh-migrations @ git+https://github.com/dreispt/osh-contrib.git#subdirectory=osh_migrations
 osh-uninstall @ git+https://github.com/dreispt/osh-contrib.git#subdirectory=osh_uninstall
 osh-update @ git+https://github.com/dreispt/osh-contrib.git#subdirectory=osh_update
+osh-sanitize @ git+https://github.com/dreispt/osh-contrib.git#subdirectory=osh_sanitize
