@@ -61,12 +61,14 @@ include = ["osh_*"]
 # plugin's [tool.osh] declarations from it without importing the plugin.
 [tool.setuptools.package-data]
 "*" = ["pyproject.toml"]
+"osh_sanitize.data" = ["anonymize/*.sql", "trim/*.sql"]
 
 # Register all bundled plugins on the `osh.plugins` entry-point group.
 [project.entry-points."osh.plugins"]
 osh_dbstats = "osh_dbstats"
 osh_echohttp = "osh_echohttp"
 osh_migrations = "osh_migrations"
+osh_sanitize = "osh_sanitize"
 osh_uninstall = "osh_uninstall"
 osh_update = "osh_update"
 

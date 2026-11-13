@@ -59,6 +59,24 @@ pip install "osh-dbstats @ git+https://github.com/dreispt/osh-contrib.git#subdir
 uv tool install osh --with "osh-dbstats @ git+https://github.com/dreispt/osh-contrib.git#subdirectory=osh_dbstats"
 ```
 
+### Updating
+
+Plugins track `master`, so updating means re-resolving the same spec —
+`pip` inside `osh`'s environment does the work:
+
+```bash
+# pipx-installed osh — run pip inside its venv
+pipx runpip osh install --upgrade "osh-contrib @ git+https://github.com/dreispt/osh-contrib.git"
+
+# or a single plugin
+pipx runpip osh install --upgrade "osh-sanitize @ git+https://github.com/dreispt/osh-contrib.git#subdirectory=osh_sanitize"
+
+# venv/uv installs — same command with that env's pip
+pip install --upgrade "osh-contrib @ git+https://github.com/dreispt/osh-contrib.git"
+```
+
+`osh` discovers entry points on each run — no restart needed.
+
 ## Plugins
 
 Each `osh_*` directory is a self-contained plugin declaring its surface
@@ -70,6 +88,8 @@ under `[tool.osh]` in its `pyproject.toml`, with its own README and tests:
   is ready (`osh odoo --open` also opens it in the browser).
 - [`osh_migrations`](osh_migrations/) — collects module `migrations/`
   scripts across OCA version branches (`osh collect-migrations`).
+- [`osh_sanitize`](osh_sanitize/) — scrubs PII and trims low-value rows
+  from databases (`osh db sanitize`, `osh backup restore --anonymize`).
 - [`osh_uninstall`](osh_uninstall/) — uninstalls Odoo modules, and their
   installed dependents, from a database (`osh apps uninstall mod_a,mod_b`).
 - [`osh_update`](osh_update/) — installs modules and detects project
