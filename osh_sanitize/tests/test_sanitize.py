@@ -162,6 +162,27 @@ def test_sanitize_trim_keeps_pending_jobs_and_notifications(in_project, pg_db):
     assert pg_db.query(name, "SELECT count(*) FROM mail_notification") == "1"
 
 
+def test_sanitize_identity_masks_chatter(in_project, pg_db):
+    """Messages kept by the trim retention have their content masked."""
+    name = pg_db.create()
+    pg_db.psql(
+        name,
+        "CREATE TABLE mail_message (id serial PRIMARY KEY, body text, "
+        "subject varchar, email_from varchar, record_name varchar);"
+        "INSERT INTO mail_message (body, subject, email_from, record_name) "
+        "VALUES ('<p>Call Jane at 555</p>', 'Re: Jane', "
+        "'Jane <jane@acme.com>', 'Jane Doe');",
+    )
+    result = CliRunner().invoke(sanitize, ["-d", name, "identity", "--force"])
+
+    assert result.exit_code == 0, result.output
+    row = pg_db.query(
+        name, "SELECT body, subject, email_from, record_name FROM mail_message"
+    )
+    assert "Jane" not in row
+    assert "jane@acme.com" not in row
+
+
 def _bare_restore(monkeypatch, **attrs):
     """A ``RestoreSanitize`` instance with params set, no Click context."""
     handler = RestoreSanitize.__new__(RestoreSanitize)
