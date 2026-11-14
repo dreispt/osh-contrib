@@ -53,7 +53,7 @@ has already passed the safety prompt.
 ## Install
 
 Requires `osh` with layered SQL script resolution (`osh.sql_scripts`)
-— shipped in osh 1.16.0.
+— shipped in osh 2.0.0.
 
 ```
 pipx inject osh "osh-sanitize @ git+https://github.com/dreispt/osh-contrib.git#subdirectory=osh_sanitize"
