@@ -30,6 +30,11 @@ osh_update = "osh_update"
 extends = ["backup.restore"]
 min_osh = "1.15.0"
 
+# `apps` is shared with osh_uninstall — declare the group description here
+# so `osh apps --help` describes the whole group, not one plugin's slice.
+[tool.osh.group_help]
+apps = "Install, update, list and uninstall Odoo modules."
+
 [tool.osh.group_commands.apps]
 fingerprint = "Record module fingerprints as the update baseline."
 install = "Install Odoo modules in a database."
