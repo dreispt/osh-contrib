@@ -28,7 +28,7 @@ osh_sanitize = "osh_sanitize"
 
 [tool.osh]
 min_osh = "2.1.0"
-extends = ["backup.restore"]
+extends = ["db.restore"]
 
 [tool.osh.group_commands.db]
 sanitize = "Scrub PII and delete low-value rows from a database."
