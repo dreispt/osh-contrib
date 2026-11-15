@@ -1,4 +1,4 @@
-"""Tests for ``osh db sanitize`` and the ``backup restore`` extension."""
+"""Tests for ``osh db sanitize`` and the ``db restore`` extension."""
 
 from click.testing import CliRunner
 from osh.cli_utils import handler_command
@@ -199,7 +199,7 @@ def _bare_restore(monkeypatch, **attrs):
 
 
 def test_restore_extension_adds_sanitize_options():
-    """``backup restore`` gains --anonymize/--trim/--keep-days."""
+    """``db restore`` gains --anonymize/--trim/--keep-days."""
     names = {param.name for param in RestoreSanitize.get_options()}
 
     assert {"anonymize", "trim", "keep_days"} <= names
@@ -218,7 +218,7 @@ def test_restore_sanitize_delegates_to_db_sanitize(monkeypatch):
 
     monkeypatch.setattr("osh_sanitize.restore.DbSanitize", StubSanitize)
     handler = _bare_restore(monkeypatch, anonymize=True, trim=True, keep_days=7)
-    handler.post_restore()
+    handler.run_post_restore()
 
     assert calls == [
         {
@@ -238,7 +238,7 @@ def test_restore_sanitize_skips_without_flags(monkeypatch):
         lambda *a, **kw: (_ for _ in ()).throw(AssertionError("sanitize ran")),
     )
     handler = _bare_restore(monkeypatch, anonymize=False, trim=False)
-    handler.post_restore()
+    handler.run_post_restore()
 
 
 def test_sanitize_dash_d_warns_deprecated(in_project, pg_db):

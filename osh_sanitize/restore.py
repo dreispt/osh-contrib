@@ -1,13 +1,7 @@
-"""``osh backup restore`` extension — ``--anonymize``/``--trim`` flags.
-
-Adds the sanitize options to the restore command and overrides
-``post_restore()`` — which core ``DbRestore`` runs after neutralization —
-to delegate to the ``db.sanitize`` handler. Like every post-restore
-extension, it is skipped under ``--dry-run`` and its failures are
-reported as warnings.
-"""
+"""Required sanitization for canonical and deprecated restore commands."""
 
 import click
+from osh.common import find_project_root
 from osh.handlers import resolve
 
 from .commands import DbSanitize
@@ -33,23 +27,43 @@ _SANITIZE_OPTIONS = [
 ]
 
 
-class RestoreSanitize(resolve("backup.restore")):
-    """Extends ``osh backup restore`` with post-restore sanitization."""
-
+class _RestoreSanitize:
     @classmethod
     def get_options(cls):
         return [*super().get_options(), *_SANITIZE_OPTIONS]
 
-    def post_restore(self):
-        if self.anonymize or self.trim:
-            # The database was just restored and neutralized, so the
-            # sanitize safety prompt is satisfied by ``force=True``.
-            DbSanitize(
-                self.env,
-                database=self.db_name,
-                no_anonymize=not self.anonymize,
-                no_trim=not self.trim,
-                keep_days=self.keep_days,
-                force=True,
-            ).run()
-        super().post_restore()
+    def run(self):
+        if (self.anonymize or self.trim) and find_project_root() is None:
+            raise click.ClickException(
+                "Not inside an Osh project. Restore with --anonymize or "
+                "--trim from a project."
+            )
+        super().run()
+
+    def run_post_restore(self):
+        if not self.dry_run and (self.anonymize or self.trim):
+            # Core treats optional post-restore hooks as warnings. Explicit
+            # sanitization must succeed before reporting a successful restore.
+            try:
+                DbSanitize(
+                    self.env,
+                    database=self.db_name,
+                    no_anonymize=not self.anonymize,
+                    no_trim=not self.trim,
+                    keep_days=self.keep_days,
+                    force=True,
+                ).run()
+            except click.ClickException as exc:
+                raise click.ClickException(
+                    f"Restored database '{self.db_name}', but sanitization "
+                    f"failed: {exc.format_message()}"
+                ) from exc
+        super().run_post_restore()
+
+
+class RestoreSanitize(_RestoreSanitize, resolve("db.restore")):
+    """Add required sanitization to the canonical restore command."""
+
+
+class LegacyRestoreSanitize(_RestoreSanitize, resolve("backup.restore")):
+    """Keep sanitization on the deprecated restore spelling."""
