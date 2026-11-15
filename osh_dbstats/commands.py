@@ -7,7 +7,7 @@ database or on the tables the dashboard flagged as bloated.
 
 import click
 from osh import echo
-from osh.cli_utils import handler_command
+from osh.cli_utils import deprecated_option, handler_command
 from osh.common import find_project_root
 from osh.db import db_exists, resolve_db_name_for_run, sanitize_db_name
 from osh.handlers import CommandHandler
@@ -46,7 +46,7 @@ class DbStats(CommandHandler):
 
     \b
       osh db stats
-      osh db stats -d otherdb
+      osh db stats otherdb
       osh db stats --top 20
       osh db stats --no-filestore
     """
@@ -54,14 +54,21 @@ class DbStats(CommandHandler):
     _cli_name = "db.stats"
 
     db_name = None
+    database = None
     top = 10
     filestore = True
 
+    @deprecated_option(
+        "-d",
+        "--db",
+        remove_in="3.0",
+        instead="pass the name as a positional argument",
+    )
     @click.option(
         "-d",
         "--db",
-        "db_name",
-        help="Database to inspect (default: the resolved branch database).",
+        "database",
+        help="Deprecated: use the DB_NAME argument instead.",
     )
     @click.option(
         "--top",
@@ -75,9 +82,12 @@ class DbStats(CommandHandler):
         help="Include the filestore size in the overview "
         "(a du of the data dir — can be slow; default: on).",
     )
+    @click.argument("db_name", required=False)
     def run(self):
         base = find_project_root(required=True)
-        db_name = _resolve_db_name(base, self.db_name, self.ctx)
+        db_name = _resolve_db_name(
+            base, _requested(self.db_name, self.database), self.ctx
+        )
         data = report.collect(
             base,
             db_name,
@@ -103,21 +113,28 @@ class DbVacuum(CommandHandler):
     \b
       osh db vacuum
       osh db vacuum --table mail_message --table ir_logging
-      osh db vacuum -d otherdb --dry-run
+      osh db vacuum otherdb --dry-run
     """
 
     _cli_name = "db.vacuum"
 
     db_name = None
+    database = None
     tables = ()
     analyze = True
     dry_run = False
 
+    @deprecated_option(
+        "-d",
+        "--db",
+        remove_in="3.0",
+        instead="pass the name as a positional argument",
+    )
     @click.option(
         "-d",
         "--db",
-        "db_name",
-        help="Database to vacuum (default: the resolved branch database).",
+        "database",
+        help="Deprecated: use the DB_NAME argument instead.",
     )
     @click.option(
         "--table",
@@ -135,9 +152,12 @@ class DbVacuum(CommandHandler):
         is_flag=True,
         help="Show the VACUUM statement without executing it.",
     )
+    @click.argument("db_name", required=False)
     def run(self):
         base = find_project_root(required=True)
-        db_name = _resolve_db_name(base, self.db_name, self.ctx)
+        db_name = _resolve_db_name(
+            base, _requested(self.db_name, self.database), self.ctx
+        )
         tables = _validated_tables(base, db_name, self.tables, ctx=self.ctx)
         statement = _vacuum_sql(tables, analyze=self.analyze)
 
@@ -153,6 +173,15 @@ class DbVacuum(CommandHandler):
             raise click.ClickException(f"VACUUM failed on '{db_name}'.")
         target = ", ".join(tables) if tables else db_name
         echo.success(f"Vacuumed {target}. Run 'osh db stats' to see the effect.")
+
+
+def _requested(positional, flag):
+    """Return the database name given positionally or via the deprecated flag."""
+    if positional and flag:
+        raise click.UsageError(
+            "Give the database name either as an argument or with " "-d/--db, not both."
+        )
+    return positional or flag
 
 
 def _resolve_db_name(base, db_name, ctx):
