@@ -32,7 +32,7 @@ def test_stats_renders_dashboard(in_project, pg_db):
         " WHERE relname = 'mail_message'",
     )
 
-    result = CliRunner().invoke(stats, ["-d", db_name, "--no-filestore"])
+    result = CliRunner().invoke(stats, [db_name, "--no-filestore"])
 
     assert result.exit_code == 0
     for section in (
@@ -53,7 +53,7 @@ def test_stats_plain_database(in_project, pg_db):
     db_name = pg_db.create()
     pg_db.make_table(db_name, "data", 100)
 
-    result = CliRunner().invoke(stats, ["-d", db_name, "--no-filestore"])
+    result = CliRunner().invoke(stats, [db_name, "--no-filestore"])
 
     assert result.exit_code == 0
     assert "not an Odoo database" in result.output
@@ -66,7 +66,7 @@ def test_stats_top_limits_sections(in_project, pg_db):
     for i in range(3):
         pg_db.make_table(db_name, f"t{i}", 100 * (i + 1))
 
-    result = CliRunner().invoke(stats, ["-d", db_name, "--no-filestore", "--top", "1"])
+    result = CliRunner().invoke(stats, [db_name, "--no-filestore", "--top", "1"])
 
     assert result.exit_code == 0
     assert "t2" in result.output
@@ -86,7 +86,7 @@ def test_stats_pg_stat_statements_handled(in_project, pg_db):
         == "t"
     )
 
-    result = CliRunner().invoke(stats, ["-d", db_name, "--no-filestore"])
+    result = CliRunner().invoke(stats, [db_name, "--no-filestore"])
 
     assert result.exit_code == 0
     if enabled:
@@ -109,7 +109,7 @@ def test_stats_flags_bloated_table(in_project, pg_db):
         " WHERE relname = 'bloated'",
     )
 
-    result = CliRunner().invoke(stats, ["-d", db_name, "--no-filestore"])
+    result = CliRunner().invoke(stats, [db_name, "--no-filestore"])
 
     assert result.exit_code == 0
     assert "no tables need vacuum" not in result.output
@@ -119,7 +119,7 @@ def test_stats_flags_bloated_table(in_project, pg_db):
 
 def test_stats_missing_database(in_project, pg_db):
     """Asking for a database that does not exist fails cleanly."""
-    result = CliRunner().invoke(stats, ["-d", "osh-test-nonexistent-db"])
+    result = CliRunner().invoke(stats, ["osh-test-nonexistent-db"])
 
     assert result.exit_code != 0
     assert "does not exist" in result.output
@@ -131,7 +131,7 @@ def test_vacuum_marks_table_vacuumed(in_project, pg_db):
     pg_db.make_table(db_name, "t1", 100)
     pg_db.make_table(db_name, "t2", 100)
 
-    result = CliRunner().invoke(vacuum, ["-d", db_name, "--table", "t1"])
+    result = CliRunner().invoke(vacuum, [db_name, "--table", "t1"])
 
     assert result.exit_code == 0
     assert "Vacuumed t1" in result.output
@@ -157,7 +157,7 @@ def test_vacuum_whole_database(in_project, pg_db):
     pg_db.make_table(db_name, "t1", 100)
     pg_db.make_table(db_name, "t2", 100)
 
-    result = CliRunner().invoke(vacuum, ["-d", db_name])
+    result = CliRunner().invoke(vacuum, [db_name])
 
     assert result.exit_code == 0
     assert "Vacuumed" in result.output
@@ -173,7 +173,7 @@ def test_vacuum_unknown_table_fails(in_project, pg_db):
     """A typo'd table name is rejected before touching the database."""
     db_name = pg_db.create()
 
-    result = CliRunner().invoke(vacuum, ["-d", db_name, "--table", "nope"])
+    result = CliRunner().invoke(vacuum, [db_name, "--table", "nope"])
 
     assert result.exit_code != 0
     assert "Unknown table(s): nope" in result.output
@@ -184,7 +184,7 @@ def test_vacuum_dry_run(in_project, pg_db):
     db_name = pg_db.create()
     pg_db.make_table(db_name, "t1", 100)
 
-    result = CliRunner().invoke(vacuum, ["-d", db_name, "--table", "t1", "--dry-run"])
+    result = CliRunner().invoke(vacuum, [db_name, "--table", "t1", "--dry-run"])
 
     assert result.exit_code == 0
     assert 'VACUUM (VERBOSE, ANALYZE) "t1"' in result.output
@@ -196,3 +196,31 @@ def test_vacuum_dry_run(in_project, pg_db):
         )
         == "t"
     )
+
+
+def test_stats_dash_d_warns_deprecated(in_project, pg_db):
+    """``-d`` still selects the database but warns it is deprecated."""
+    db_name = pg_db.create()
+
+    result = CliRunner().invoke(stats, ["-d", db_name, "--no-filestore"])
+
+    assert result.exit_code == 0, result.output
+    assert "deprecated" in result.output
+    assert "DATABASE" in result.output
+
+
+def test_stats_rejects_positional_and_dash_d_together(in_project):
+    """Giving the name both ways is a usage error."""
+    result = CliRunner().invoke(stats, ["somedb", "-d", "otherdb"])
+
+    assert result.exit_code == 2
+
+
+def test_vacuum_dash_d_warns_deprecated(in_project, pg_db):
+    """``-d`` still selects the database but warns it is deprecated."""
+    db_name = pg_db.create()
+
+    result = CliRunner().invoke(vacuum, ["-d", db_name, "--dry-run"])
+
+    assert result.exit_code == 0, result.output
+    assert "deprecated" in result.output
