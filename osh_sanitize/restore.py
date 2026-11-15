@@ -1,4 +1,4 @@
-"""``osh backup restore`` extension — ``--anonymize``/``--trim`` flags.
+"""``osh db restore`` extension — ``--anonymize``/``--trim`` flags.
 
 Adds the sanitize options to the restore command and overrides
 ``post_restore()`` — which core ``DbRestore`` runs after neutralization —
@@ -33,8 +33,8 @@ _SANITIZE_OPTIONS = [
 ]
 
 
-class RestoreSanitize(resolve("backup.restore")):
-    """Extends ``osh backup restore`` with post-restore sanitization."""
+class RestoreSanitize(resolve("db.restore")):
+    """Extends ``osh db restore`` with post-restore sanitization."""
 
     @classmethod
     def get_options(cls):

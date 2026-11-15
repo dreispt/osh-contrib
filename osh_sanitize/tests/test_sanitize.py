@@ -1,4 +1,4 @@
-"""Tests for ``osh db sanitize`` and the ``backup restore`` extension."""
+"""Tests for ``osh db sanitize`` and the ``db restore`` extension."""
 
 from click.testing import CliRunner
 from osh.cli_utils import handler_command
@@ -195,7 +195,7 @@ def _bare_restore(monkeypatch, **attrs):
 
 
 def test_restore_extension_adds_sanitize_options():
-    """``backup restore`` gains --anonymize/--trim/--keep-days."""
+    """``db restore`` gains --anonymize/--trim/--keep-days."""
     names = {param.name for param in RestoreSanitize.get_options()}
 
     assert {"anonymize", "trim", "keep_days"} <= names
