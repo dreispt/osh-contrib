@@ -1,0 +1,45 @@
+#!/bin/sh
+# Fake ``kiri`` CLI used by the Kiri runtime test suite.
+#
+# ``kiri share ...`` simulates a Kiri Share session: argv is appended to
+# ``kiri.log``, the pid to ``kiri.pid``, then the JSON event stream the
+# supervisor parses is emitted — ``connecting`` then ``live`` with a
+# public URL (``kiri_fail`` holding a message instead emits ``ended`` and
+# exits 1; ``kiri_hang`` never goes live). The fake then idles until
+# terminated: TERM/INT append ``stopped`` to ``kiri.log`` and exit 0.
+D=$OSH_FAKE_DOCKER
+if [ -z "$D" ]; then
+    echo "fake kiri: OSH_FAKE_DOCKER is not set" >&2
+    exit 2
+fi
+mkdir -p "$D"
+echo "$*" >> "$D/kiri.log"
+
+# Only ``share`` is simulated; anything else exits cleanly.
+[ "${1:-}" = "share" ] || exit 0
+
+echo $$ > "$D/kiri.pid"
+
+port=
+prev=
+for arg in "$@"; do
+    [ "$prev" = "share" ] && port=$arg
+    prev=$arg
+done
+
+cleanup() {
+    echo "stopped" >> "$D/kiri.log"
+    exit 0
+}
+trap cleanup TERM INT
+
+if [ -f "$D/kiri_fail" ]; then
+    printf '{"event":"ended","message":"%s"}\n' "$(cat "$D/kiri_fail")"
+    exit 1
+fi
+printf '%s\n' '{"event":"connecting"}'
+if [ -f "$D/kiri_hang" ]; then
+    while :; do sleep 1; done
+fi
+printf '{"event":"live","url":"https://demo-4k2x.runkiri.cloud","port":%s}\n' "${port:-8069}"
+while :; do sleep 1; done
