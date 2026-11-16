@@ -161,55 +161,63 @@ def test_employee_identity_is_masked_in_resource_and_hr_fields(in_project, pg_db
     )
 
 
-def test_swapped_placeholder_logins_do_not_abort(in_project, pg_db):
-    """Renaming logins to 'user<id>' must survive value swaps.
+def test_user_logins_and_names_are_preserved(in_project, pg_db):
+    """User logins and user account names survive sanitizing.
 
-    When existing logins already look like placeholders in swapped
-    positions (id 1 holds 'user2', id 2 holds 'user1'), a naive
-    ``SET login = 'user' || id`` violates the unique constraint
-    mid-statement and the whole sanitize aborts — the user is left with
-    an untouched database and no explanation beyond a constraint error.
+    Developers keep their credentials on a sanitized database:
+    ``res_users`` logins are never rewritten, and a partner referenced by
+    ``res_users.partner_id`` keeps its name — it is the user's display
+    name — while every other partner is anonymized.
     """
     name = pg_db.create()
     pg_db.psql(
         name,
         "CREATE TABLE res_users ("
-        "id int PRIMARY KEY, login varchar NOT NULL, "
+        "id int PRIMARY KEY, login varchar NOT NULL, partner_id int, "
         "CONSTRAINT res_users_login_key UNIQUE (login));"
-        "INSERT INTO res_users (id, login) VALUES (1, 'user2'), (2, 'user1');"
+        "INSERT INTO res_users (id, login, partner_id) VALUES "
+        "(1, 'alice', 1), (2, 'bob', 2);"
         "CREATE TABLE res_partner (id serial PRIMARY KEY, name varchar);"
-        "INSERT INTO res_partner (name) VALUES ('Jane Doe');",
+        "INSERT INTO res_partner (id, name) VALUES "
+        "(1, 'Alice Dev'), (2, 'Bob Dev'), (3, 'Jane Doe');",
     )
     result = CliRunner().invoke(sanitize, ["-d", name, "identity", "--force"])
 
     assert result.exit_code == 0, result.output
-    logins = pg_db.query(name, "SELECT login FROM res_users ORDER BY id")
-    assert logins.split() == ["user1", "user2"]
+    logins = pg_db.query(
+        name, "SELECT string_agg(login, '|' ORDER BY id) FROM res_users"
+    )
+    assert logins == "alice|bob"
+    partners = pg_db.query(
+        name, "SELECT string_agg(name, '|' ORDER BY id) FROM res_partner"
+    )
+    assert partners == "Alice Dev|Bob Dev|Partner 3"
 
 
 def test_identity_script_is_atomic(in_project, pg_db):
     """A failure inside 010_identity.sql rolls back the whole script.
 
-    When the login rename fails — here a CHECK constraint rejects 'user%'
-    logins — the partner masking that ran earlier in the same script must
-    roll back too: a sanitized database must never be left
+    When the email masking fails — here a CHECK constraint rejects the
+    '@example.local' placeholder — the partner name masking that already
+    ran must roll back too: a sanitized database must never be left
     half-anonymized.
     """
     name = pg_db.create()
     pg_db.psql(
         name,
-        "CREATE TABLE res_users ("
-        "id int PRIMARY KEY, login varchar NOT NULL, "
-        "CONSTRAINT res_users_login_key UNIQUE (login), "
-        "CHECK (login NOT LIKE 'user%'));"
-        "INSERT INTO res_users (id, login) VALUES (1, 'alice'), (2, 'bob');"
-        "CREATE TABLE res_partner (id serial PRIMARY KEY, name varchar);"
-        "INSERT INTO res_partner (name) VALUES ('Jane Doe');",
+        "CREATE TABLE res_partner ("
+        "id serial PRIMARY KEY, name varchar, "
+        "email varchar, "
+        "CONSTRAINT res_partner_email_check "
+        "CHECK (email NOT LIKE '%@example.local'));"
+        "INSERT INTO res_partner (id, name, email) VALUES "
+        "(1, 'Jane Doe', 'jane@example.com');",
     )
     result = CliRunner().invoke(sanitize, ["-d", name, "identity", "--force"])
 
     assert result.exit_code != 0
     assert pg_db.query(name, "SELECT name FROM res_partner") == "Jane Doe"
+    assert pg_db.query(name, "SELECT email FROM res_partner") == "jane@example.com"
 
 
 def test_zero_keep_days_from_project_config_is_honored(in_project, pg_db, monkeypatch):
