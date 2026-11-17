@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=70.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "osh-pgconvert"
+version = "0.1.0"
+description = "Convert PostgreSQL dumps between server major versions via a throwaway docker container."
+authors = [
+    {name = "Daniel Reis"}
+]
+readme = "README.md"
+license = {text = "LGPL-3.0-only"}
+requires-python = ">=3.10"
+keywords = ["odoo", "cli", "shell", "development", "osh", "postgresql"]
+dependencies = [
+    "click>=8.1",
+    "osh>=1.15.0",
+]
+
+[project.optional-dependencies]
+tests = [
+    "pytest>=7.0",
+]
+
+[project.entry-points."osh.plugins"]
+osh_pgconvert = "osh_pgconvert"
+
+[tool.osh]
+min_osh = "1.15.0"
+
+[tool.osh.group_commands.db]
+dump-convert = "Convert a PostgreSQL dump to a different server major version."
+
+[tool.setuptools]
+package-dir = {"osh_pgconvert" = "."}
+packages = ["osh_pgconvert"]
+
+# Ship pyproject.toml inside the package — osh reads [tool.osh] from it
+# without importing the plugin.
+[tool.setuptools.package-data]
+osh_pgconvert = ["pyproject.toml"]
