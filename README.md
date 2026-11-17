@@ -2,7 +2,9 @@
 
 Contrib plugins for [osh](https://github.com/dreispt/osh), the Odoo Shell CLI.
 This repository hosts plugins that don't belong in `osh` core — either moved
-out of core or contributed by the community.
+out of core or contributed by the community. See [DEVELOP.md](DEVELOP.md)
+for contributor notes, including how releases are tagged, and
+[CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ## Installation
 
@@ -16,12 +18,20 @@ Plugins are ordinary Python packages installed into `osh`'s environment.
 Pick the subsection matching how `osh` was installed — and don't mix the
 bundle with individual plugin dists (they ship the same code).
 
+### Pick a contrib version
+
+Contrib releases are tagged with the `osh` version they are tested
+against — install the tag matching your `osh` (`osh --version`). The
+examples below pin `@v2.0.1`; drop the `@<tag>` to track `master` instead.
+Every plugin also declares a `min_osh` floor and refuses to load on an
+older `osh`, so a mismatched pairing fails loudly rather than silently.
+
 ### A single plugin, with pipx
 
 For `osh` installed as a [pipx](https://pipx.pypa.io) app:
 
 ```bash
-pipx inject osh "osh-dbstats @ git+https://github.com/dreispt/osh-contrib.git#subdirectory=osh_dbstats"
+pipx inject osh "osh-dbstats @ git+https://github.com/dreispt/osh-contrib.git@v2.0.1#subdirectory=osh_dbstats"
 ```
 
 Each plugin is its own distribution installed from its repo subdirectory —
@@ -35,17 +45,22 @@ Remove with `pipx uninject osh osh-dbstats`. No restart is needed —
 The `osh-contrib` bundle distribution ships every plugin in one install:
 
 ```bash
-pipx inject osh "osh-contrib @ git+https://github.com/dreispt/osh-contrib.git"
+pipx inject osh "osh-contrib @ git+https://github.com/dreispt/osh-contrib.git@v2.0.1"
 ```
 
 For a subset, download [`plugins.txt`](plugins.txt) — one spec per
 plugin — comment out what you don't want, then feed it to `inject`:
 
 ```bash
-curl -fsSL -o plugins.txt https://raw.githubusercontent.com/dreispt/osh-contrib/master/plugins.txt
+# pinned to a release — fetch the file at that tag and add @<tag> to each URL
+curl -fsSL -o plugins.txt https://raw.githubusercontent.com/dreispt/osh-contrib/v2.0.1/plugins.txt
+sed -i 's|osh-contrib.git|osh-contrib.git@v2.0.1|g' plugins.txt
 # edit plugins.txt, comment out plugins you don't want
 pipx inject osh -r plugins.txt
 ```
+
+`plugins.txt` on `master` tracks `master` — use it as-is for the latest
+plugins.
 
 ### Without pipx (venv, uv)
 
@@ -53,10 +68,10 @@ Plugins must live in `osh`'s environment, so use that env's installer:
 
 ```bash
 # venv where `osh` is pip-installed
-pip install "osh-dbstats @ git+https://github.com/dreispt/osh-contrib.git#subdirectory=osh_dbstats"
+pip install "osh-dbstats @ git+https://github.com/dreispt/osh-contrib.git@v2.0.1#subdirectory=osh_dbstats"
 
 # `osh` installed as a uv tool
-uv tool install osh --with "osh-dbstats @ git+https://github.com/dreispt/osh-contrib.git#subdirectory=osh_dbstats"
+uv tool install osh --with "osh-dbstats @ git+https://github.com/dreispt/osh-contrib.git@v2.0.1#subdirectory=osh_dbstats"
 ```
 
 ### Updating
@@ -68,8 +83,8 @@ Plugins track `master`, so updating means re-resolving the same spec —
 # pipx-installed osh — run pip inside its venv
 pipx runpip osh install --upgrade "osh-contrib @ git+https://github.com/dreispt/osh-contrib.git"
 
-# or a single plugin
-pipx runpip osh install --upgrade "osh-sanitize @ git+https://github.com/dreispt/osh-contrib.git#subdirectory=osh_sanitize"
+# or a single plugin — pin @<tag> to move to a specific release
+pipx runpip osh install --upgrade "osh-sanitize @ git+https://github.com/dreispt/osh-contrib.git@v2.0.1#subdirectory=osh_sanitize"
 
 # venv/uv installs — same command with that env's pip
 pip install --upgrade "osh-contrib @ git+https://github.com/dreispt/osh-contrib.git"

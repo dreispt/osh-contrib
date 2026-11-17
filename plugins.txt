@@ -1,5 +1,9 @@
 # One pip package spec per osh-contrib plugin.
 #
+# These specs track `master`. To pin a release, fetch this file at the
+# tag (…/vX.Y.Z/plugins.txt) and insert @vX.Y.Z after `.git` in each URL —
+# or install the `osh-contrib` bundle with the same @<tag> ref instead.
+#
 # Install all plugins in one shot:
 #
 #   pipx inject osh -r <(curl -fsSL https://raw.githubusercontent.com/dreispt/osh-contrib/master/plugins.txt)
