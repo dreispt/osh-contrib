@@ -22,8 +22,10 @@ class DbDumpConvert(CommandHandler):
     is updated to the target server version.
 
     The source can be a backup zip, a plain ``pg_dump -Fp`` .sql file,
-    or a database: pass ``--from-db NAME``, or run inside an osh project
-    with no file argument to export the project's database.
+    stdin (``-``), or a database: pass ``--from-db NAME``, or run inside
+    an osh project with no file argument to export the project's
+    database. ``-`` as OUTPUT writes the zip to stdout. Requires the
+    ``pgdump-convert`` package (see README).
 
     \b
       osh db dump-convert backup.zip
@@ -42,6 +44,7 @@ class DbDumpConvert(CommandHandler):
     from_db = None
     filestore = False
     dry_run = False
+    allow_restore_errors = False
 
     @click.argument(
         "input",
@@ -94,6 +97,14 @@ class DbDumpConvert(CommandHandler):
         is_flag=True,
         help="Report what would run without doing it.",
     )
+    @click.option(
+        "--allow-restore-errors",
+        is_flag=True,
+        help=(
+            "Continue even if the in-container restore reports SQL errors "
+            "(default: fail fast, since the dump may be incomplete)."
+        ),
+    )
     def run(self):
         base = find_project_root()
         if self.from_db:
@@ -113,16 +124,19 @@ class DbDumpConvert(CommandHandler):
                 else Path.cwd() / f"{from_db}-pg{self.to}.zip"
             )
         else:
-            src = Path(self.input) if self.input else None
+            src = self.input if self.input else None
             if self.filestore:
                 raise click.UsageError(
                     "--filestore only applies to a database source "
                     "(--from-db or the project's database)"
                 )
-            if src is not None and not src.is_file():
+            if src is not None and src != "-" and not Path(src).is_file():
                 raise click.ClickException(f"{src} is not a file")
             from_db = None
-            if src is None:
+            if src == "-":
+                # stdin → the zip goes to stdout unless OUTPUT is given.
+                output = self.output or "-"
+            elif src is None:
                 if base is None:
                     raise click.ClickException(
                         "Nothing to convert: pass a backup file or "
@@ -141,10 +155,11 @@ class DbDumpConvert(CommandHandler):
                     else Path.cwd() / f"{from_db}-pg{self.to}.zip"
                 )
             else:
+                src_path = Path(src)
                 output = (
                     Path(self.output)
                     if self.output
-                    else src.with_name(f"{src.stem}-pg{self.to}.zip")
+                    else src_path.with_name(f"{src_path.stem}-pg{self.to}.zip")
                 )
         if from_db is not None:
             core.convert_db(
@@ -156,6 +171,7 @@ class DbDumpConvert(CommandHandler):
                 db_name=self.db_name,
                 include_filestore=self.filestore,
                 dry_run=self.dry_run,
+                allow_restore_errors=self.allow_restore_errors,
             )
         else:
             core.convert(
@@ -164,6 +180,7 @@ class DbDumpConvert(CommandHandler):
                 image=self.image or f"postgres:{self.to}",
                 db_name=self.db_name,
                 dry_run=self.dry_run,
+                allow_restore_errors=self.allow_restore_errors,
             )
 
 

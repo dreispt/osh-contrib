@@ -5,6 +5,7 @@ import subprocess
 import zipfile
 from pathlib import Path
 
+import pgdump_convert.core as pgc
 from click.testing import CliRunner
 
 import osh_pgconvert.core as core
@@ -69,8 +70,8 @@ def test_dump_convert_repackages_backup(tmp_path, monkeypatch):
     src = tmp_path / "backup.zip"
     out = tmp_path / "backup-pg16.zip"
     _make_backup(src)
-    monkeypatch.setattr(core, "_run", _fake_docker)
-    monkeypatch.setattr(core.shutil, "which", lambda name: "/usr/bin/docker")
+    monkeypatch.setattr(pgc, "_run", _fake_docker)
+    monkeypatch.setattr(pgc.shutil, "which", lambda name: "/usr/bin/docker")
 
     result = CliRunner().invoke(dump_convert, [str(src), str(out), "--to", "16"])
 
@@ -94,7 +95,7 @@ def test_dump_convert_dry_run_needs_no_docker(tmp_path, monkeypatch):
     """--dry-run reports the plan without requiring docker or running it."""
     src = tmp_path / "backup.zip"
     _make_backup(src)
-    monkeypatch.setattr(core.shutil, "which", lambda name: None)  # docker absent
+    monkeypatch.setattr(pgc.shutil, "which", lambda name: None)  # docker absent
 
     result = CliRunner().invoke(dump_convert, [str(src), "--to", "16", "--dry-run"])
 
@@ -119,8 +120,8 @@ def test_dump_convert_accepts_plain_sql_file(tmp_path, monkeypatch):
         "\\unrestrict KEY1\n"
     )
     out = tmp_path / "dump-pg16.zip"
-    monkeypatch.setattr(core, "_run", _fake_docker)
-    monkeypatch.setattr(core.shutil, "which", lambda name: "/usr/bin/docker")
+    monkeypatch.setattr(pgc, "_run", _fake_docker)
+    monkeypatch.setattr(pgc.shutil, "which", lambda name: "/usr/bin/docker")
 
     result = CliRunner().invoke(dump_convert, [str(src), str(out), "--to", "16"])
 
@@ -138,7 +139,9 @@ def test_dump_convert_rejects_custom_format_dump(tmp_path):
     src = tmp_path / "dump.pgdump"
     src.write_bytes(b"PGDMP" + b"\x00" * 100)
 
-    result = CliRunner().invoke(dump_convert, [str(src), "--dry-run"])
+    # No --dry-run: the format check lives in pgdump-convert and runs
+    # before docker is needed.
+    result = CliRunner().invoke(dump_convert, [str(src)])
 
     assert result.exit_code != 0
     assert "custom" in result.output.lower() or "plain" in result.output.lower()
@@ -168,8 +171,8 @@ def _make_project(tmp_path, monkeypatch, name="myproject"):
 
 def _fake_db_backend(monkeypatch, modules=None, filestore_dir=None):
     """Stub the osh.db helpers used by DB export; fake docker still runs."""
-    monkeypatch.setattr(core, "_run", _fake_docker)
-    monkeypatch.setattr(core.shutil, "which", lambda name: "/usr/bin/docker")
+    monkeypatch.setattr(pgc, "_run", _fake_docker)
+    monkeypatch.setattr(pgc.shutil, "which", lambda name: "/usr/bin/docker")
     monkeypatch.setattr(core, "db_exists", lambda *a, **k: True)
 
     def fake_run_in_runtime(ctx, base, argv, **kwargs):
@@ -317,7 +320,7 @@ def test_dump_convert_filestore_skipped_when_unavailable(tmp_path, monkeypatch):
 def test_dump_convert_db_dry_run_needs_no_docker(tmp_path, monkeypatch):
     """--from-db --dry-run prints the plan without docker or pg_dump."""
     _make_project(tmp_path, monkeypatch)
-    monkeypatch.setattr(core.shutil, "which", lambda name: None)
+    monkeypatch.setattr(pgc.shutil, "which", lambda name: None)
     monkeypatch.setattr(core, "db_exists", lambda *a, **k: True)
 
     result = CliRunner().invoke(
@@ -370,8 +373,8 @@ def test_dump_convert_rewrites_pg18_not_null_constraints(tmp_path, monkeypatch):
             staged["dump"] = Path(args[1]).read_bytes()
         return _fake_docker(args, **kwargs)
 
-    monkeypatch.setattr(core, "_run", fake)
-    monkeypatch.setattr(core.shutil, "which", lambda name: "/usr/bin/docker")
+    monkeypatch.setattr(pgc, "_run", fake)
+    monkeypatch.setattr(pgc.shutil, "which", lambda name: "/usr/bin/docker")
 
     result = CliRunner().invoke(dump_convert, [str(src), str(out), "--to", "16"])
 
@@ -388,3 +391,41 @@ def test_dump_convert_rewrites_pg18_not_null_constraints(tmp_path, monkeypatch):
     )
     # COPY payload must pass through untouched
     assert b"1\t{}\t-x-" in dump_in
+
+
+# --- pgdump-convert dependency --------------------------------------------
+
+
+def test_dump_convert_missing_dependency_shows_pipx_instructions(tmp_path, monkeypatch):
+    """Without pgdump-convert installed, the command fails with install help."""
+    src = tmp_path / "backup.zip"
+    _make_backup(src)
+    monkeypatch.setitem(__import__("sys").modules, "pgdump_convert", None)
+
+    result = CliRunner().invoke(dump_convert, [str(src), "--to", "16"])
+
+    assert result.exit_code != 0
+    assert "pgdump-convert" in result.output
+    assert "pipx inject osh" in result.output
+
+
+def test_dump_convert_dry_run_needs_no_dependency(tmp_path, monkeypatch):
+    """--dry-run reports the plan even when pgdump-convert is missing."""
+    src = tmp_path / "backup.zip"
+    _make_backup(src)
+    monkeypatch.setitem(__import__("sys").modules, "pgdump_convert", None)
+
+    result = CliRunner().invoke(dump_convert, [str(src), "--to", "16", "--dry-run"])
+
+    assert result.exit_code == 0, result.output
+    assert "postgres:16" in result.output
+
+
+def test_dump_convert_dash_reads_stdin(tmp_path, monkeypatch):
+    """'-' as INPUT reads stdin and defaults OUTPUT to stdout ('-')."""
+    monkeypatch.chdir(tmp_path)  # no project → '-' must not fall into db mode
+
+    result = CliRunner().invoke(dump_convert, ["-", "--dry-run"])
+
+    assert result.exit_code == 0, result.output
+    assert "Would restore -" in result.output
