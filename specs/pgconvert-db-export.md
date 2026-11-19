@@ -8,9 +8,11 @@
 
 ## Context
 
-`osh db dump-convert` converts an Odoo zip backup (PG18 → PG16 etc.) by
-restoring `dump.sql` into a throwaway `postgres:<to>` container and
-re-dumping. Two gaps:
+`osh db dump-convert` converts an Odoo zip backup (PG18 → PG16 etc.).
+The SQL version conversion is delegated to the standalone
+`pgdump-convert` package; this plugin owns the Odoo layer — zip
+extract/repack, `manifest.json`, `filestore/`, and dumping project
+databases through the osh runtime. Gaps addressed:
 
 - Users must first produce a backup zip; exporting straight from the
   project's database is the common case ("my dev DB is on PG18, odoo.sh
@@ -27,7 +29,8 @@ Command surface:
 ```
 osh db dump-convert [INPUT] [OUTPUT] [--to 16] [--image IMAGE]
                     [--container-db NAME] [--from-db NAME] [--filestore]
-                    [--dry-run]
+                    [--docker-test|--docker-import] [--dry-run]
+                    [--allow-restore-errors]
 ```
 
 - `INPUT` becomes optional. Exactly one source is used:
@@ -72,8 +75,10 @@ DB export (`convert_db`):
 for installed modules}}` — modules queried via `psql_rows` on
   `ir_module_module`; if the query fails (non-Odoo DB) `modules` stays
   `{}`. `version`/`major_version` are NOT invented.
-- The synthesized manifest then flows through the existing
-  `_write_zip`, which stamps `pg_version` from the target server.
+- The synthesized manifest then flows through `_write_zip`, which
+  stamps `pg_version` with `--to` (the filter engine does not verify
+  against a server; `--docker-test` proves the dump loads but does not
+  change the stamped version).
 
 Output naming:
 
@@ -90,7 +95,9 @@ Compatibility notes:
 - `\restrict`/`\unrestrict` stripping already applies on both input
   paths.
 - PG18 → PG16 conversion path: PG18 `dump.sql` (or live DB) →
-  `postgres:16` container restore → PG16 `pg_dump -Fp` → Odoo.zip.
+  `pgdump_convert` filter rules → Odoo.zip. `--docker-test` /
+  `--docker-import` optionally restore the converted SQL into a
+  throwaway `postgres:<to>` container (verify / leave running).
 
 ## Alternatives considered
 
@@ -108,10 +115,12 @@ Compatibility notes:
 ## Tasks
 
 - [x] Spec
-- [ ] Failing tests: plain-SQL input, `PGDMP` rejection, `--from-db`,
+- [x] Failing tests: plain-SQL input, `PGDMP` rejection, `--from-db`,
       implicit project DB, `--from-db`+`INPUT` conflict, outside-project
       errors, `--filestore` inclusion/skip, manifest `modules`,
       `--container-db` rename, dry-run for DB mode
-- [ ] `core.convert` accepts SQL files; `core.convert_db` added
-- [ ] `commands.py` new options and source resolution
-- [ ] README + this spec updated; tests green; pre-commit clean
+- [x] `core.convert` accepts zip/SQL/stdin; `core.convert_db` added
+- [x] `commands.py` new options and source resolution
+- [x] README + this spec updated; tests green; pre-commit clean
+- [x] Delegate SQL conversion to `pgdump-convert` package; plugin owns
+      zip/manifest/filestore; `--docker-test`/`--docker-import` pass-through

@@ -14,22 +14,22 @@ from . import core
 class DbDumpConvert(CommandHandler):
     """Convert a PostgreSQL dump to a different server major version.
 
-    Restores the dump into a throwaway ``postgres:<version>`` docker
-    container and re-dumps from that server, so the output is guaranteed
-    compatible with the target version. Produces an Odoo-format zip
+    Rewrites the dump's SQL for the target PostgreSQL version (via the
+    ``pgdump-convert`` package) and repacks it as an Odoo-format zip
     backup (``dump.sql`` + ``filestore/`` + ``manifest.json``) that
-    Odoo.sh and ``osh db restore`` accept; the manifest ``pg_version``
-    is updated to the target server version.
+    Odoo.sh and ``osh db restore`` accept. ``--docker-test`` /
+    ``--docker-import`` optionally load the converted SQL into a
+    throwaway ``postgres:<version>`` container to prove it restores.
 
     The source can be a backup zip, a plain ``pg_dump -Fp`` .sql file,
     stdin (``-``), or a database: pass ``--from-db NAME``, or run inside
     an osh project with no file argument to export the project's
-    database. ``-`` as OUTPUT writes the zip to stdout. Requires the
-    ``pgdump-convert`` package (see README).
+    database. ``-`` as OUTPUT writes the zip to stdout.
 
     \b
       osh db dump-convert backup.zip
       osh db dump-convert dump.sql backup-pg16.zip --to 16
+      osh db dump-convert --docker-test backup.zip
       osh db dump-convert --from-db minha-vinha --filestore
       osh db dump-convert                       # project's database
     """
@@ -43,6 +43,8 @@ class DbDumpConvert(CommandHandler):
     db_name = "odoo"
     from_db = None
     filestore = False
+    docker_test = False
+    docker_import = False
     dry_run = False
     allow_restore_errors = False
 
@@ -93,6 +95,23 @@ class DbDumpConvert(CommandHandler):
         ),
     )
     @click.option(
+        "--docker-test",
+        is_flag=True,
+        help=(
+            "Test the converted dump by restoring it into a throwaway "
+            "postgres:<to> container, then remove the container "
+            "(requires docker)."
+        ),
+    )
+    @click.option(
+        "--docker-import",
+        is_flag=True,
+        help=(
+            "Import the converted dump into a postgres:<to> container "
+            "and leave it running for inspection (requires docker)."
+        ),
+    )
+    @click.option(
         "--dry-run",
         is_flag=True,
         help="Report what would run without doing it.",
@@ -106,6 +125,13 @@ class DbDumpConvert(CommandHandler):
         ),
     )
     def run(self):
+        if self.docker_test and self.docker_import:
+            raise click.UsageError(
+                "--docker-test and --docker-import are mutually exclusive"
+            )
+        docker = (
+            "test" if self.docker_test else "import" if self.docker_import else None
+        )
         base = find_project_root()
         if self.from_db:
             # No input is read, so the first positional is the OUTPUT.
@@ -170,6 +196,8 @@ class DbDumpConvert(CommandHandler):
                 image=self.image or f"postgres:{self.to}",
                 db_name=self.db_name,
                 include_filestore=self.filestore,
+                docker=docker,
+                target_version=self.to,
                 dry_run=self.dry_run,
                 allow_restore_errors=self.allow_restore_errors,
             )
@@ -179,6 +207,8 @@ class DbDumpConvert(CommandHandler):
                 output,
                 image=self.image or f"postgres:{self.to}",
                 db_name=self.db_name,
+                docker=docker,
+                target_version=self.to,
                 dry_run=self.dry_run,
                 allow_restore_errors=self.allow_restore_errors,
             )

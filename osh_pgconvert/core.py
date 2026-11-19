@@ -1,15 +1,15 @@
 """Convert a PostgreSQL dump to a different server major version.
 
-The conversion itself is delegated to the ``pgdump-convert`` package
-(https://github.com/OdooEssentials/pgdump-convert): it restores the dump
-into a throwaway ``postgres:<version>`` docker container and re-dumps
-from that server. This module keeps the osh-specific parts — dumping a
-project database through its runtime and bundling its filestore — and
-stages the result as an Odoo-format zip for ``pgdump_convert``.
+The SQL version conversion is delegated to the ``pgdump-convert``
+package (https://github.com/OdooEssentials/pgdump-convert). This module
+owns the Odoo side: extracting and repacking backup zips, carrying
+``manifest.json`` and ``filestore/``, and dumping project databases
+through the osh runtime.
 """
 
 import json
 import shutil
+import sys
 import tempfile
 import zipfile
 from pathlib import Path
@@ -30,6 +30,115 @@ For a venv or uv install, use that environment's installer instead:
     pip install "pgdump-convert @ git+https://github.com/OdooEssentials/pgdump-convert.git"
 """
 
+__all__ = ["convert", "convert_db"]
+
+
+def convert(
+    src,
+    output,
+    image="postgres:16",
+    db_name="odoo",
+    docker=None,
+    target_version=None,
+    dry_run=False,
+    allow_restore_errors=False,
+):
+    """Convert *src* (Odoo zip backup, plain SQL dump, or ``-`` for stdin).
+
+    The SQL is converted by ``pgdump_convert``; the result is repacked
+    as an Odoo-format zip at *output* (``-`` for stdout on stdout.buffer).
+    """
+    src = str(src)
+    output = str(output)
+    if dry_run:
+        echo.info(f"Would convert {src} and write {output}", err=True)
+        if docker:
+            echo.info(
+                f"Would load into a throwaway {image} container ({docker})",
+                err=True,
+            )
+        return
+    pgc = _pgdump_convert()
+    # Work next to a real output dir (or cwd for stdout): /tmp is often a
+    # small tmpfs and dumps are huge.
+    anchor = Path.cwd() if output == "-" else Path(output).parent
+    if output != "-":
+        anchor.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=anchor) as tmp:
+        work = Path(tmp)
+        sql_path = _stage_input(src, work)
+        _convert_sql(
+            pgc,
+            sql_path,
+            work,
+            output,
+            image,
+            db_name,
+            docker,
+            target_version,
+            allow_restore_errors,
+        )
+
+
+def convert_db(
+    ctx,
+    base,
+    src_db,
+    output,
+    image="postgres:16",
+    db_name="odoo",
+    include_filestore=False,
+    docker=None,
+    target_version=None,
+    dry_run=False,
+    allow_restore_errors=False,
+):
+    """Export database *src_db* through the project's runtime and convert it.
+
+    *base* is the osh project root; the dump is read via the project's
+    configured runtime, converted by ``pgdump_convert``, and repacked
+    with a synthesized manifest (and the filestore when requested) as an
+    Odoo-format zip at *output*.
+    """
+    output = str(output)
+    if dry_run:
+        echo.info(
+            f"Would pg_dump '{src_db}' and write {output}",
+            err=True,
+        )
+        if include_filestore:
+            echo.info("Would include the project filestore", err=True)
+        if docker:
+            echo.info(
+                f"Would load into a throwaway {image} container ({docker})",
+                err=True,
+            )
+        return
+    pgc = _pgdump_convert()
+    if not db_exists(base, src_db, ctx=ctx):
+        raise click.ClickException(f"database '{src_db}' does not exist")
+    anchor = Path.cwd() if output == "-" else Path(output).parent
+    if output != "-":
+        anchor.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=anchor) as tmp:
+        work = Path(tmp)
+        echo.info(f"dumping '{src_db}'")
+        _dump_db(ctx, base, src_db, work / "dump.sql")
+        if include_filestore:
+            _copy_filestore(ctx, base, src_db, work)
+        _write_source_manifest(ctx, base, src_db, work)
+        _convert_sql(
+            pgc,
+            work / "dump.sql",
+            work,
+            output,
+            image,
+            db_name,
+            docker,
+            target_version,
+            allow_restore_errors,
+        )
+
 
 def _pgdump_convert():
     """Import ``pgdump_convert.core`` or fail with install instructions."""
@@ -40,37 +149,95 @@ def _pgdump_convert():
     return pgc
 
 
-def convert(
-    src,
-    output,
-    image="postgres:16",
-    db_name="odoo",
-    dry_run=False,
-    allow_restore_errors=False,
-):
-    """Convert *src* (Odoo zip backup, plain SQL dump, or ``-`` for stdin).
+def _stage_input(src, work):
+    """Stage *src* and return the path of the plain SQL dump.
 
-    Delegates to ``pgdump_convert.core.convert``; *output* may be ``-``
-    for stdout.
+    *src* may be ``"-"`` (stdin), an Odoo zip backup, or a plain SQL
+    file. Zip contents (``dump.sql``, ``manifest.json``, ``filestore/``)
+    are extracted into *work*; anything else is rejected later by
+    ``pgdump_convert`` itself.
     """
-    src = str(src)
-    output = str(output)
-    if dry_run:
-        echo.info(
-            f"Would restore {src} into a throwaway {image} container "
-            f"and write {output}",
-            err=True,
-        )
-        return
-    pgc = _pgdump_convert()
+    if src == "-":
+        staged = work / "input.bin"
+        echo.info("reading dump from stdin", err=True)
+        with open(staged, "wb") as f:
+            shutil.copyfileobj(sys.stdin.buffer, f)
+        path = staged
+    else:
+        path = Path(src)
+    if zipfile.is_zipfile(path):
+        with zipfile.ZipFile(path) as zf:
+            for name in zf.namelist():
+                if (
+                    name == "dump.sql"
+                    or name == "manifest.json"
+                    or name.startswith("filestore/")
+                ):
+                    zf.extract(name, work)
+        if not (work / "dump.sql").exists():
+            raise click.ClickException(f"{src} does not contain dump.sql")
+        return work / "dump.sql"
+    return path
+
+
+def _write_zip(work, output, dump_sql, pg_version):
+    """Repack ``dump.sql`` + ``manifest.json`` + ``filestore/`` into *output*.
+
+    *output* may be ``"-"`` for stdout (binary zip on stdout.buffer).
+    """
+    manifest_path = work / "manifest.json"
+    manifest = None
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text())
+    if manifest:
+        if pg_version:
+            manifest["pg_version"] = pg_version
+        manifest_path.write_text(json.dumps(manifest, indent=4))
+    to_stdout = output == "-"
+    target = work / "output.zip" if to_stdout else Path(output)
+    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as zf:
+        if manifest:
+            zf.write(manifest_path, "manifest.json")
+        filestore = work / "filestore"
+        if filestore.exists():
+            for path in sorted(filestore.rglob("*")):
+                if path.is_file():
+                    zf.write(
+                        path,
+                        "filestore/" + path.relative_to(filestore).as_posix(),
+                    )
+        zf.write(dump_sql, "dump.sql")
+    if to_stdout:
+        with open(target, "rb") as f:
+            shutil.copyfileobj(f, sys.stdout.buffer)
+        echo.info("wrote zip to stdout", err=True)
+    else:
+        echo.info(f"wrote {output}", err=True)
+
+
+def _convert_sql(
+    pgc,
+    sql_path,
+    work,
+    output,
+    image,
+    db_name,
+    docker,
+    target_version,
+    allow_restore_errors,
+):
+    """Run pgdump_convert on *sql_path* and repack the Odoo zip."""
+    converted = work / "converted.sql"
     pgc.convert(
-        src,
-        output,
+        str(sql_path),
+        str(converted),
         image=image,
         db_name=db_name,
+        docker=docker,
         dry_run=False,
         allow_restore_errors=allow_restore_errors,
     )
+    _write_zip(work, output, converted, target_version)
 
 
 def _dump_db(ctx, base, src_db, out_path):
@@ -124,77 +291,3 @@ def _write_source_manifest(ctx, base, src_db, work):
     if returncode == 0:
         manifest["modules"] = {row[0]: row[1] for row in rows if len(row) >= 2}
     (work / "manifest.json").write_text(json.dumps(manifest, indent=4))
-
-
-def _stage_zip(work, staged):
-    """Pack ``work/{dump.sql,manifest.json,filestore/}`` into *staged*."""
-    with zipfile.ZipFile(staged, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.write(work / "dump.sql", "dump.sql")
-        manifest = work / "manifest.json"
-        if manifest.exists():
-            zf.write(manifest, "manifest.json")
-        filestore = work / "filestore"
-        if filestore.exists():
-            for path in sorted(filestore.rglob("*")):
-                if path.is_file():
-                    zf.write(
-                        path,
-                        "filestore/" + path.relative_to(filestore).as_posix(),
-                    )
-
-
-def convert_db(
-    ctx,
-    base,
-    src_db,
-    output,
-    image="postgres:16",
-    db_name="odoo",
-    include_filestore=False,
-    dry_run=False,
-    allow_restore_errors=False,
-):
-    """Export database *src_db* through the project's runtime and convert it.
-
-    *base* is the osh project root; the dump and filestore are read via
-    the project's configured runtime, staged as an Odoo-format zip, then
-    converted by ``pgdump_convert`` like any other input.
-    """
-    output = str(output)
-    if dry_run:
-        echo.info(
-            f"Would pg_dump '{src_db}' and write {output} via a throwaway "
-            f"{image} container",
-            err=True,
-        )
-        if include_filestore:
-            echo.info("Would include the project filestore", err=True)
-        return
-    pgc = _pgdump_convert()
-    if not db_exists(base, src_db, ctx=ctx):
-        raise click.ClickException(f"database '{src_db}' does not exist")
-    # Work next to a real output dir (or cwd for stdout): /tmp is often a
-    # small tmpfs and dumps are huge.
-    anchor = Path.cwd() if output == "-" else Path(output).parent
-    if output != "-":
-        anchor.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(dir=anchor) as tmp:
-        work = Path(tmp)
-        echo.info(f"dumping '{src_db}'")
-        _dump_db(ctx, base, src_db, work / "dump.sql")
-        if include_filestore:
-            _copy_filestore(ctx, base, src_db, work)
-        _write_source_manifest(ctx, base, src_db, work)
-        staged = work / "input.zip"
-        _stage_zip(work, staged)
-        pgc.convert(
-            str(staged),
-            output,
-            image=image,
-            db_name=db_name,
-            dry_run=False,
-            allow_restore_errors=allow_restore_errors,
-        )
-
-
-__all__ = ["convert", "convert_db"]

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "osh-pgconvert"
 version = "0.1.0"
-description = "Convert PostgreSQL dumps between server major versions via a throwaway docker container."
+description = "Convert PostgreSQL dumps between server major versions (pgdump-convert)."
 authors = [
     {name = "Daniel Reis"}
 ]
@@ -16,6 +16,7 @@ keywords = ["odoo", "cli", "shell", "development", "osh", "postgresql"]
 dependencies = [
     "click>=8.1",
     "osh>=1.15.0",
+    "pgdump-convert @ git+https://github.com/OdooEssentials/pgdump-convert.git",
 ]
 
 [project.optional-dependencies]

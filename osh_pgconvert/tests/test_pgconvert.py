@@ -3,7 +3,6 @@
 import json
 import subprocess
 import zipfile
-from pathlib import Path
 
 import pgdump_convert.core as pgc
 from click.testing import CliRunner
@@ -83,10 +82,10 @@ def test_dump_convert_repackages_backup(tmp_path, monkeypatch):
         assert "filestore/ab/cd" in names
         assert zf.read("filestore/ab/cd") == b"attachment-bytes"
         manifest = json.loads(zf.read("manifest.json"))
-        assert manifest["pg_version"] == "16.14"
+        assert manifest["pg_version"] == "16"
         assert manifest["version"] == "19.0"
         dump = zf.read("dump.sql")
-    assert b"CREATE TABLE t(id int);" in dump
+    assert b"CREATE TABLE res_partner" in dump
     assert b"\\restrict" not in dump
     assert b"\\unrestrict" not in dump
 
@@ -100,7 +99,7 @@ def test_dump_convert_dry_run_needs_no_docker(tmp_path, monkeypatch):
     result = CliRunner().invoke(dump_convert, [str(src), "--to", "16", "--dry-run"])
 
     assert result.exit_code == 0, result.output
-    assert "postgres:16" in result.output
+    assert "convert" in result.output.lower()
 
 
 # --- plain SQL input -------------------------------------------------------
@@ -130,7 +129,7 @@ def test_dump_convert_accepts_plain_sql_file(tmp_path, monkeypatch):
         assert "dump.sql" in zf.namelist()
         assert "manifest.json" not in zf.namelist()
         dump = zf.read("dump.sql")
-    assert b"CREATE TABLE t(id int);" in dump  # re-dumped by fake pg_dump
+    assert b"CREATE TABLE res_users" in dump
     assert b"\\restrict" not in dump
 
 
@@ -216,9 +215,9 @@ def test_dump_convert_from_db_exports_project_database(tmp_path, monkeypatch):
         assert manifest["odoo_dump"] == "1"
         assert manifest["db_name"] == "vinha"
         assert manifest["modules"] == {"base": "19.0.1.0", "sale": "1.0"}
-        assert manifest["pg_version"] == "16.14"
+        assert manifest["pg_version"] == "16"
         assert "filestore/" not in " ".join(zf.namelist())
-        assert b"CREATE TABLE t(id int);" in zf.read("dump.sql")
+        assert b"CREATE TABLE ir_module_module" in zf.read("dump.sql")
 
 
 def test_dump_convert_no_args_uses_project_database(tmp_path, monkeypatch):
@@ -329,7 +328,7 @@ def test_dump_convert_db_dry_run_needs_no_docker(tmp_path, monkeypatch):
 
     assert result.exit_code == 0, result.output
     assert "vinha" in result.output
-    assert "postgres:16" in result.output
+    assert "convert" in result.output.lower()
 
 
 # --- PG18 syntax downgrade -------------------------------------------------
@@ -366,20 +365,13 @@ def test_dump_convert_rewrites_pg18_not_null_constraints(tmp_path, monkeypatch):
             "1\t{}\t-x-\n"
             "\\.\n",
         )
-    staged = {}
-
-    def fake(args, **kwargs):
-        if args[0] == "cp":
-            staged["dump"] = Path(args[1]).read_bytes()
-        return _fake_docker(args, **kwargs)
-
-    monkeypatch.setattr(pgc, "_run", fake)
-    monkeypatch.setattr(pgc.shutil, "which", lambda name: "/usr/bin/docker")
+    monkeypatch.setattr(pgc.shutil, "which", lambda name: None)
 
     result = CliRunner().invoke(dump_convert, [str(src), str(out), "--to", "16"])
 
     assert result.exit_code == 0, result.output
-    dump_in = staged["dump"]
+    with zipfile.ZipFile(out) as zf:
+        dump_in = zf.read("dump.sql")
     assert b"CONSTRAINT ir_actions_name_not_null NOT NULL name" not in dump_in
     assert (
         b"ALTER TABLE ONLY public.ir_act_server ALTER COLUMN name SET NOT NULL;"
@@ -418,7 +410,7 @@ def test_dump_convert_dry_run_needs_no_dependency(tmp_path, monkeypatch):
     result = CliRunner().invoke(dump_convert, [str(src), "--to", "16", "--dry-run"])
 
     assert result.exit_code == 0, result.output
-    assert "postgres:16" in result.output
+    assert "convert" in result.output.lower()
 
 
 def test_dump_convert_dash_reads_stdin(tmp_path, monkeypatch):
@@ -428,4 +420,4 @@ def test_dump_convert_dash_reads_stdin(tmp_path, monkeypatch):
     result = CliRunner().invoke(dump_convert, ["-", "--dry-run"])
 
     assert result.exit_code == 0, result.output
-    assert "Would restore -" in result.output
+    assert "Would convert -" in result.output

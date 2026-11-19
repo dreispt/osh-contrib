@@ -39,6 +39,7 @@ classifiers = [
 dependencies = [
     "click>=8.1",
     "osh>=1.15.0",
+    "pgdump-convert @ git+https://github.com/OdooEssentials/pgdump-convert.git",
 ]
 
 [project.optional-dependencies]
