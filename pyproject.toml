@@ -39,6 +39,7 @@ classifiers = [
 dependencies = [
     "click>=8.1",
     "osh>=1.15.0",
+    "pgdump-convert @ git+https://github.com/OdooEssentials/pgdump-convert.git",
 ]
 
 [project.optional-dependencies]
@@ -68,6 +69,7 @@ include = ["osh_*"]
 osh_dbstats = "osh_dbstats"
 osh_echohttp = "osh_echohttp"
 osh_migrations = "osh_migrations"
+osh_pgconvert = "osh_pgconvert"
 osh_sanitize = "osh_sanitize"
 osh_uninstall = "osh_uninstall"
 osh_update = "osh_update"

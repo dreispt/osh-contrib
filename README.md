@@ -103,6 +103,9 @@ under `[tool.osh]` in its `pyproject.toml`, with its own README and tests:
   is ready (`osh odoo --open` also opens it in the browser).
 - [`osh_migrations`](osh_migrations/) — collects module `migrations/`
   scripts across OCA version branches (`osh collect-migrations`).
+- [`osh_pgconvert`](osh_pgconvert/) — converts PostgreSQL dumps between
+  server major versions (`osh db dump-convert`; needs the
+  `pgdump-convert` package).
 - [`osh_sanitize`](osh_sanitize/) — scrubs PII and trims low-value rows
   from databases (`osh db sanitize`, `osh backup restore --anonymize`).
 - [`osh_uninstall`](osh_uninstall/) — uninstalls Odoo modules, and their
