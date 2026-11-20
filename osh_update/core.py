@@ -3,7 +3,7 @@
 Detects which installed project modules changed since the last update and
 runs ``odoo -u`` on them through the public ``osh odoo`` CLI; installs
 modules with ``odoo -i``. Kept separate from the Click commands so it can
-be reused and monkeypatched in tests. Also hosts the ``backup.restore``
+be reused and monkeypatched in tests. Also hosts the ``db.restore``
 ``post_restore`` extension that fingerprints freshly restored databases.
 """
 
@@ -154,8 +154,8 @@ def record_baseline(
     echo.success(f"Recorded fingerprints for {len(baseline)} module(s) in '{db_name}'.")
 
 
-class RestoreBaseline(resolve("backup.restore")):
-    """Extends ``osh backup restore`` — baseline restored dbs lacking one.
+class RestoreBaseline(resolve("db.restore")):
+    """Extends ``osh db restore`` — baseline restored dbs lacking one.
 
     A restored dump keeps the fingerprint map it carried — it describes the
     code the database was last updated against, so real diffs are still

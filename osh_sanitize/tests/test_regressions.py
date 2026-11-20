@@ -48,7 +48,7 @@ def test_partner_stored_identity_fields_are_masked(in_project, pg_db):
         "'Jane.Doe@Acme.com', 'jane.doe@acme.com', '+1 555 0100', "
         "'+15550100', false, 1, 1, NULL, 'Acme Corp');",
     )
-    result = CliRunner().invoke(sanitize, ["-d", name, "identity", "--force"])
+    result = CliRunner().invoke(sanitize, ["--db", name, "identity", "--force"])
 
     assert result.exit_code == 0, result.output
     dump = pg_db.query(name, "SELECT row_to_json(p) FROM res_partner p ORDER BY id")
@@ -78,7 +78,7 @@ def test_bank_account_derived_fields_are_masked(in_project, pg_db):
         "(acc_number, sanitized_acc_number, acc_holder_name) VALUES "
         "('BE68 5390 0754 7034', 'BE68539007547034', 'Jane Doe');",
     )
-    result = CliRunner().invoke(sanitize, ["-d", name, "identity", "--force"])
+    result = CliRunner().invoke(sanitize, ["--db", name, "identity", "--force"])
 
     assert result.exit_code == 0, result.output
     dump = pg_db.query(name, "SELECT row_to_json(b) FROM res_partner_bank b")
@@ -105,7 +105,7 @@ def test_recent_tracking_values_are_masked(in_project, pg_db):
         "(old_value_char, new_value_char, old_value_text, new_value_text) "
         "VALUES ('Jane Doe', 'Jane Smith', 'jane@acme.com', '+1 555 0100');",
     )
-    result = CliRunner().invoke(sanitize, ["-d", name, "--force"])
+    result = CliRunner().invoke(sanitize, ["--db", name, "--force"])
 
     assert result.exit_code == 0, result.output
     assert pg_db.query(name, "SELECT count(*) FROM mail_tracking_value") == "1"
@@ -138,7 +138,7 @@ def test_employee_identity_is_masked_in_resource_and_hr_fields(in_project, pg_db
         "'John Doe', 'P-778899', 'V-112233', 'jane@acme.com', "
         "'+1 555 0101', '+1 555 0102');",
     )
-    result = CliRunner().invoke(sanitize, ["-d", name, "identity", "--force"])
+    result = CliRunner().invoke(sanitize, ["--db", name, "identity", "--force"])
 
     assert result.exit_code == 0, result.output
     employee_dump = pg_db.query(name, "SELECT row_to_json(e) FROM hr_employee e")
@@ -180,7 +180,7 @@ def test_swapped_placeholder_logins_do_not_abort(in_project, pg_db):
         "CREATE TABLE res_partner (id serial PRIMARY KEY, name varchar);"
         "INSERT INTO res_partner (name) VALUES ('Jane Doe');",
     )
-    result = CliRunner().invoke(sanitize, ["-d", name, "identity", "--force"])
+    result = CliRunner().invoke(sanitize, ["--db", name, "identity", "--force"])
 
     assert result.exit_code == 0, result.output
     logins = pg_db.query(name, "SELECT login FROM res_users ORDER BY id")
@@ -206,7 +206,7 @@ def test_identity_script_is_atomic(in_project, pg_db):
         "CREATE TABLE res_partner (id serial PRIMARY KEY, name varchar);"
         "INSERT INTO res_partner (name) VALUES ('Jane Doe');",
     )
-    result = CliRunner().invoke(sanitize, ["-d", name, "identity", "--force"])
+    result = CliRunner().invoke(sanitize, ["--db", name, "identity", "--force"])
 
     assert result.exit_code != 0
     assert pg_db.query(name, "SELECT name FROM res_partner") == "Jane Doe"
@@ -231,7 +231,7 @@ def test_zero_keep_days_from_project_config_is_honored(in_project, pg_db, monkey
     )
     (in_project / ".osh" / "config.toml").write_text("[trim]\nkeep_days = 0\n")
 
-    result = CliRunner().invoke(sanitize, ["-d", name, "trim", "--force"])
+    result = CliRunner().invoke(sanitize, ["--db", name, "trim", "--force"])
 
     assert result.exit_code == 0, result.output
     assert pg_db.query(name, "SELECT count(*) FROM mail_tracking_value") == "0"
@@ -248,7 +248,7 @@ def test_trim_only_script_selection_with_both_groups(in_project, pg_db):
     """
     name = pg_db.create()
     result = CliRunner().invoke(
-        sanitize, ["-d", name, "--script", "mail_message", "--force"]
+        sanitize, ["--db", name, "--script", "mail_message", "--force"]
     )
 
     assert result.exit_code == 0, result.output
@@ -266,7 +266,7 @@ def test_anonymize_only_skip_with_both_groups(in_project, pg_db):
     """
     name = pg_db.create()
     result = CliRunner().invoke(
-        sanitize, ["-d", name, "--skip", "address", "--dry-run"]
+        sanitize, ["--db", name, "--skip", "address", "--dry-run"]
     )
 
     assert result.exit_code == 0, result.output
@@ -286,7 +286,7 @@ def test_selection_spanning_both_groups(in_project, pg_db):
     result = CliRunner().invoke(
         sanitize,
         [
-            "-d",
+            "--db",
             name,
             "--script",
             "identity",
@@ -310,7 +310,9 @@ def test_unknown_script_is_rejected_before_any_sql_runs(in_project, pg_db):
     group is a usage error and no 'Running ...' line may appear.
     """
     name = pg_db.create()
-    result = CliRunner().invoke(sanitize, ["-d", name, "--script", "bogus", "--force"])
+    result = CliRunner().invoke(
+        sanitize, ["--db", name, "--script", "bogus", "--force"]
+    )
 
     assert result.exit_code != 0
     assert "Unknown script(s): bogus" in result.output
@@ -345,7 +347,7 @@ def test_vacuum_returns_trimmed_space_to_disk(in_project, pg_db):
 
     result = CliRunner().invoke(
         sanitize,
-        ["-d", name, "trim", "--keep-days", "30", "--vacuum", "--force"],
+        ["--db", name, "trim", "--keep-days", "30", "--vacuum", "--force"],
     )
 
     assert result.exit_code == 0, result.output
@@ -374,7 +376,7 @@ def test_pre17_stored_display_name_keeps_company_prefix(in_project, pg_db):
         "VALUES (1, 'Acme Corp', 'Acme Corp', true, NULL, 1, 'Acme Corp'), "
         "(2, 'Jane Doe', 'Acme Corp, Jane Doe', false, 1, 1, 'Acme Corp');",
     )
-    result = CliRunner().invoke(sanitize, ["-d", name, "identity", "--force"])
+    result = CliRunner().invoke(sanitize, ["--db", name, "identity", "--force"])
 
     assert result.exit_code == 0, result.output
     dump = pg_db.query(name, "SELECT row_to_json(p) FROM res_partner p ORDER BY id")
@@ -405,7 +407,7 @@ def test_odoo10_employee_names_live_on_the_resource(in_project, pg_db):
         "INSERT INTO hr_employee (resource_id, name_related, ssnid, "
         "work_email) VALUES (1, 'Jane Doe', '123-45-6789', 'jane@acme.com');",
     )
-    result = CliRunner().invoke(sanitize, ["-d", name, "identity", "--force"])
+    result = CliRunner().invoke(sanitize, ["--db", name, "identity", "--force"])
 
     assert result.exit_code == 0, result.output
     employee_dump = pg_db.query(name, "SELECT row_to_json(e) FROM hr_employee e")
@@ -435,7 +437,7 @@ def test_partner_without_company_columns_still_masks_full_name(in_project, pg_db
         "INSERT INTO res_partner (name, display_name) VALUES "
         "('Jane Doe', 'Jane Doe');",
     )
-    result = CliRunner().invoke(sanitize, ["-d", name, "identity", "--force"])
+    result = CliRunner().invoke(sanitize, ["--db", name, "identity", "--force"])
 
     assert result.exit_code == 0, result.output
     assert pg_db.query(name, "SELECT display_name FROM res_partner") == "Partner 1"

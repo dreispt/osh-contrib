@@ -2,7 +2,7 @@
 
 Scrub a database for development use: `osh db sanitize` anonymizes PII
 with deterministic placeholders and trims low-value rows from big
-tables. `osh backup restore --anonymize --trim` runs the same steps
+tables. `osh db restore --anonymize --trim` runs the same steps
 after neutralizing a restored dump.
 
 ## `osh db sanitize`
@@ -41,9 +41,9 @@ the combined set of both groups. `:keep_days` inside trim scripts
 comes from `--keep-days`, `$OSH_KEEP_DAYS`, or the
 `[trim] keep_days` project setting.
 
-## `osh backup restore --anonymize --trim`
+## `osh db restore --anonymize --trim`
 
-The plugin extends `osh backup restore`: the flags run the same steps
+The plugin extends `osh db restore`: the flags run the same steps
 after neutralization, as a `post_restore` extension alongside the other
 plugins — so they are skipped under `--dry-run`, and a failure is
 reported as a warning rather than failing the completed restore.
