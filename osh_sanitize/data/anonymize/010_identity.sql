@@ -1,9 +1,11 @@
--- Anonymize level 1: identity — names, emails, phones, logins and
--- identifier numbers. Deterministic, id-derived values so the result
--- stays coherent across runs and references. Every statement sits in a
--- DO block guarded by to_regclass()/column checks so one script serves
--- every Odoo version and module set. The script runs in a single
--- transaction so a failure leaves no partial changes.
+-- Anonymize level 1: identity — names, emails, phones and identifier
+-- numbers. User logins and the names of user accounts are preserved so
+-- the database stays usable for its developers. Deterministic,
+-- id-derived values keep the result coherent across runs and
+-- references. Every statement sits in a DO block guarded by
+-- to_regclass()/column checks so one script serves every Odoo version
+-- and module set. The script runs in a single transaction so a failure
+-- leaves no partial changes.
 
 BEGIN;
 
@@ -18,7 +20,21 @@ BEGIN
     END IF;
     IF EXISTS (SELECT 1 FROM information_schema.columns
                 WHERE table_name = 'res_partner' AND column_name = 'name') THEN
-        UPDATE res_partner SET name = 'Partner ' || id;
+        -- Partners backing a res_users account keep their name: the
+        -- user's display name is the partner name, and developers need
+        -- to know who they are logging in as. Every other partner is
+        -- anonymized.
+        IF to_regclass('res_users') IS NOT NULL
+           AND EXISTS (SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'res_users'
+                          AND column_name = 'partner_id') THEN
+            UPDATE res_partner SET name = 'Partner ' || id
+             WHERE id NOT IN (
+                SELECT partner_id FROM res_users WHERE partner_id IS NOT NULL
+             );
+        ELSE
+            UPDATE res_partner SET name = 'Partner ' || id;
+        END IF;
     END IF;
     IF EXISTS (SELECT 1 FROM information_schema.columns
                 WHERE table_name = 'res_partner' AND column_name = 'email') THEN
@@ -100,30 +116,9 @@ BEGIN
     END IF;
 END $$;
 
-DO $$
-DECLARE
-    tmp text;
-BEGIN
-    IF to_regclass('res_users') IS NULL THEN
-        RETURN;
-    END IF;
-    -- login stays unique per record; passwords are left untouched so the
-    -- developer is not locked out of the database. The rename goes through
-    -- a temporary prefix verified disjoint from all current logins and
-    -- unable to collide with the final 'user<id>' values, because the
-    -- unique constraint is checked row by row.
-    IF EXISTS (SELECT 1 FROM information_schema.columns
-                WHERE table_name = 'res_users' AND column_name = 'login') THEN
-        LOOP
-            tmp := 'osh-tmp-'
-                || substr(md5(random()::text || clock_timestamp()::text), 1, 12)
-                || '-';
-            EXIT WHEN NOT EXISTS (SELECT 1 FROM res_users WHERE login LIKE tmp || '%');
-        END LOOP;
-        UPDATE res_users SET login = tmp || id;
-        UPDATE res_users SET login = 'user' || id;
-    END IF;
-END $$;
+-- res_users logins are deliberately preserved, together with the partner
+-- names backing those accounts: passwords were never touched either, so
+-- developers keep their usual credentials on a sanitized database.
 
 DO $$
 BEGIN

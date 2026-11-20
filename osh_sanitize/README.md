@@ -16,8 +16,10 @@ osh db sanitize [GROUP…] [-d DB] [--force] [--dry-run] [--list]
 
 Two groups run by default:
 
-- **anonymize** — rewrites personal data (partners, users, bank
-  accounts, employees, chatter) with deterministic placeholders. The bundled
+- **anonymize** — rewrites personal data (partners, bank
+  accounts, employees, chatter) with deterministic placeholders.
+  `res_users` logins and the names of user accounts are preserved so
+  developers keep their credentials. The bundled
   profile splits into the `identity` and `address` levels, selectable
   as positional groups.
 - **trim** — deletes rows from big, low-value tables (logs, mail
