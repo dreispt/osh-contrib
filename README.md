@@ -103,6 +103,8 @@ under `[tool.osh]` in its `pyproject.toml`, with its own README and tests:
   is ready (`osh odoo --open` also opens it in the browser).
 - [`osh_migrations`](osh_migrations/) — collects module `migrations/`
   scripts across OCA version branches (`osh collect-migrations`).
+- [`osh_runtime_kiri`](osh_runtime_kiri/) — runs Odoo Compose stacks on
+  the Kiri container engine (`osh init kiri`, `osh odoo --kiri-share`).
 - [`osh_sanitize`](osh_sanitize/) — scrubs PII and trims low-value rows
   from databases (`osh db sanitize`, `osh backup restore --anonymize`).
 - [`osh_uninstall`](osh_uninstall/) — uninstalls Odoo modules, and their
