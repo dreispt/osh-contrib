@@ -11,9 +11,9 @@ then updated with `odoo -u`.
 Fingerprints live in the database itself as the `ir.config_parameter` record
 `osh.module_fingerprints` (visible under _Settings → Technical → System
 Parameters_), so they follow the database across `osh db copy` and
-`osh backup restore`.
+`osh db restore`.
 
-On `osh backup restore`, the plugin also runs a post-restore hook: when the
+On `osh db restore`, the plugin also runs a post-restore hook: when the
 restored dump carries no fingerprint map, the local modules' fingerprints
 are recorded right away so later `osh apps update` runs diff from the
 restore point. Dumps that do carry fingerprints keep them — they describe
@@ -91,11 +91,10 @@ later release.
 - **First run:** no fingerprints stored yet — `osh apps update` only
   records a baseline and performs no update. Use `osh apps update --all`
   if the database is not actually in sync.
-- **Restores:** a database restored with `osh backup restore` gets a baseline
-  recorded automatically when the dump has none (see above); the
-  `backup.restore` extension needs osh >= 1.9 — the plugin requires it anyway. The restore baseline always uses the default scope
-  (nested repos included), since `osh backup restore` has no `--no-submodules`
-  flag to forward.
+- **Restores:** a database restored with `osh db restore` gets a baseline
+  recorded automatically when the dump has none (see above). The restore
+  baseline always uses the default scope (nested repos included), since
+  `osh db restore` has no `--no-submodules` flag to forward.
 - **Not installed:** modules not installed in the database are silently
   skipped by `osh apps update` (it never installs; use `osh apps install`).
 - **Install tracking:** `osh apps install` records a full baseline on
@@ -123,13 +122,11 @@ later release.
 
 ## Requirements
 
-- `osh` >= 1.9 (lazy plugin discovery and handler subclassing through
-  `osh.handlers`). The `apps` commands are declared under
+- `osh` >= 2.1.0. The `apps` commands are declared under
   `[tool.osh.group_commands.apps]`, the deprecated `db` spellings under
-  `[tool.osh.group_commands.db]` and the post-restore hook via
-  `extends = ["backup.restore"]` in `pyproject.toml`, so the module
-  imports only when an `apps`/`db` subcommand or `osh backup restore`
-  actually runs. With `osh` >= 1.11 the deprecated spellings are also
-  hidden from `osh db --help`.
+  `[tool.osh.group_commands.db]` and the post-restore hooks via
+  `extends = ["db.restore", "backup.restore"]` in `pyproject.toml`, so
+  the module imports only when an `apps`/`db` subcommand or a restore
+  command actually runs. The deprecated spellings are hidden from `osh db --help`.
 - A `psql` able to reach the target database using the project's configured
   credentials (the same requirement `osh odoo` already has).

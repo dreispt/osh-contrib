@@ -2,6 +2,7 @@
 
 import click
 from osh import echo
+from osh.cli_utils import deprecated_option
 from osh.common import find_project_root
 from osh.db import db_exists, psql_rows, resolve_db_name, sanitize_db_name
 from osh.handlers import CommandHandler
@@ -44,7 +45,7 @@ class DbSanitize(CommandHandler):
       osh db sanitize
       osh db sanitize trim             # only the trim group
       osh db sanitize identity         # only the identity level
-      osh db sanitize -d prod_copy
+      osh db sanitize --db prod_copy
       osh db sanitize --list
       osh db sanitize --no-anonymize --keep-days 90 --vacuum
       osh db sanitize --script mail_message --keep-days 7
@@ -58,6 +59,7 @@ class DbSanitize(CommandHandler):
 
     groups = ()
     database = None
+    db = None
     no_anonymize = False
     no_trim = False
     keep_days = None
@@ -70,9 +72,20 @@ class DbSanitize(CommandHandler):
     force = False
 
     @click.argument("groups", nargs=-1, metavar="[GROUP]")
+    @deprecated_option(
+        "-d",
+        "--database",
+        remove_in="3.0",
+        instead="use --db NAME",
+    )
     @click.option(
         "-d",
         "--database",
+        help="Deprecated: use --db instead.",
+    )
+    @click.option(
+        "--db",
+        "db",
         help="Database to sanitize (defaults to the current branch's database).",
     )
     @click.option(
@@ -205,10 +218,16 @@ class DbSanitize(CommandHandler):
             echo_sql_scripts(scripts, err=True)
 
     def resolve_database(self):
-        """Return the database to sanitize (``-d`` or the branch default)."""
+        """Return the database to sanitize (``--db`` or the branch default)."""
+        if self.database and self.db:
+            raise click.UsageError(
+                "Give the database name either with --db or the deprecated "
+                "-d/--database, not both."
+            )
+        requested = self.database or self.db
         db_name = (
-            sanitize_db_name(self.database)
-            if self.database
+            sanitize_db_name(requested)
+            if requested
             else resolve_db_name(self.base, verbose=False)
         )
         if not db_name:

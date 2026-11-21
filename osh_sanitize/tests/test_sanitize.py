@@ -1,4 +1,4 @@
-"""Tests for ``osh db sanitize`` and the ``backup restore`` extension."""
+"""Tests for ``osh db sanitize`` and the ``db restore`` extension."""
 
 from click.testing import CliRunner
 from osh.cli_utils import handler_command
@@ -20,7 +20,7 @@ def test_sanitize_list_shows_resolved_scripts(in_project):
 
 def test_sanitize_missing_database_errors(in_project, pg_db):
     """Sanitizing a database that does not exist is an error."""
-    result = CliRunner().invoke(sanitize, ["-d", pg_db.name(), "--force"])
+    result = CliRunner().invoke(sanitize, ["--db", pg_db.name(), "--force"])
 
     assert result.exit_code != 0
     assert "does not exist" in result.output
@@ -29,7 +29,7 @@ def test_sanitize_missing_database_errors(in_project, pg_db):
 def test_sanitize_dry_run_previews_scripts_and_trim(in_project, pg_db):
     """``--dry-run`` names the scripts without writing anything."""
     name = pg_db.create()
-    result = CliRunner().invoke(sanitize, ["-d", name, "--dry-run"])
+    result = CliRunner().invoke(sanitize, ["--db", name, "--dry-run"])
 
     assert result.exit_code == 0, result.output
     assert "Would run anonymize script: 010_identity.sql (bundled)" in result.output
@@ -38,7 +38,7 @@ def test_sanitize_dry_run_previews_scripts_and_trim(in_project, pg_db):
 def test_sanitize_force_runs_on_real_database(in_project, pg_db):
     """A full run on an empty database: guarded scripts no-op, absent tables skip."""
     name = pg_db.create()
-    result = CliRunner().invoke(sanitize, ["-d", name, "--force"])
+    result = CliRunner().invoke(sanitize, ["--db", name, "--force"])
 
     assert result.exit_code == 0, result.output
     assert "Running anonymize script: 010_identity.sql" in result.output
@@ -50,7 +50,7 @@ def test_sanitize_force_runs_on_real_database(in_project, pg_db):
 def test_sanitize_warns_and_confirms_on_unneutralized_db(in_project, pg_db):
     """Without ``--force``, an unneutralized database warns and asks."""
     name = pg_db.create()
-    result = CliRunner().invoke(sanitize, ["-d", name], input="n\n")
+    result = CliRunner().invoke(sanitize, ["--db", name], input="n\n")
 
     assert result.exit_code != 0
     assert "does not look neutralized" in result.output
@@ -59,7 +59,7 @@ def test_sanitize_warns_and_confirms_on_unneutralized_db(in_project, pg_db):
 def test_sanitize_step_argument_selects_groups(in_project, pg_db):
     """`osh db sanitize trim` runs only the trim group."""
     name = pg_db.create()
-    result = CliRunner().invoke(sanitize, ["-d", name, "trim", "--dry-run"])
+    result = CliRunner().invoke(sanitize, ["--db", name, "trim", "--dry-run"])
 
     assert result.exit_code == 0, result.output
     assert "anonymize script" not in result.output
@@ -77,7 +77,7 @@ def test_sanitize_step_argument_rejects_unknown(in_project):
 def test_sanitize_identity_group_runs_only_identity_level(in_project, pg_db):
     """`osh db sanitize identity` runs only the identity anonymize level."""
     name = pg_db.create()
-    result = CliRunner().invoke(sanitize, ["-d", name, "identity", "--dry-run"])
+    result = CliRunner().invoke(sanitize, ["--db", name, "identity", "--dry-run"])
 
     assert result.exit_code == 0, result.output
     assert "Would run anonymize script: 010_identity.sql" in result.output
@@ -88,7 +88,7 @@ def test_sanitize_identity_group_runs_only_identity_level(in_project, pg_db):
 def test_sanitize_address_level_does_not_mark_anonymized(in_project, pg_db):
     """A single level leaves out the ``database.is_anonymized`` marker."""
     name = pg_db.create()
-    result = CliRunner().invoke(sanitize, ["-d", name, "address", "--dry-run"])
+    result = CliRunner().invoke(sanitize, ["--db", name, "address", "--dry-run"])
 
     assert result.exit_code == 0, result.output
     assert "Would run anonymize script: 050_address.sql" in result.output
@@ -99,7 +99,7 @@ def test_sanitize_skip_does_not_mark_anonymized(in_project, pg_db):
     """Skipping an anonymize script leaves out the anonymized marker."""
     name = pg_db.create()
     result = CliRunner().invoke(
-        sanitize, ["-d", name, "anonymize", "--skip", "address", "--dry-run"]
+        sanitize, ["--db", name, "anonymize", "--skip", "address", "--dry-run"]
     )
 
     assert result.exit_code == 0, result.output
@@ -111,7 +111,7 @@ def test_sanitize_anonymize_group_runs_every_level(in_project, pg_db):
     """`osh db sanitize anonymize identity` still runs the whole group."""
     name = pg_db.create()
     result = CliRunner().invoke(
-        sanitize, ["-d", name, "anonymize", "identity", "--dry-run"]
+        sanitize, ["--db", name, "anonymize", "identity", "--dry-run"]
     )
 
     assert result.exit_code == 0, result.output
@@ -122,7 +122,9 @@ def test_sanitize_anonymize_group_runs_every_level(in_project, pg_db):
 def test_sanitize_rejects_negative_keep_days(in_project, pg_db):
     """A negative retention would delete recent rows — it is an error."""
     name = pg_db.create()
-    result = CliRunner().invoke(sanitize, ["-d", name, "--keep-days", "-1", "--force"])
+    result = CliRunner().invoke(
+        sanitize, ["--db", name, "--keep-days", "-1", "--force"]
+    )
 
     assert result.exit_code != 0
     assert "keep_days must not be negative" in result.output
@@ -133,7 +135,9 @@ def test_sanitize_dry_run_does_not_vacuum(in_project, pg_db):
     """``--dry-run --vacuum`` previews without vacuuming."""
     name = pg_db.create()
     pg_db.make_table(name, "ir_logging", 1)
-    result = CliRunner().invoke(sanitize, ["-d", name, "trim", "--vacuum", "--dry-run"])
+    result = CliRunner().invoke(
+        sanitize, ["--db", name, "trim", "--vacuum", "--dry-run"]
+    )
 
     assert result.exit_code == 0, result.output
     assert "Vacuuming" not in result.output
@@ -153,7 +157,7 @@ def test_sanitize_trim_keeps_pending_jobs_and_notifications(in_project, pg_db):
         "mail_mail_id int REFERENCES mail_mail ON DELETE SET NULL);"
         "INSERT INTO mail_notification (mail_mail_id) SELECT id FROM mail_mail;",
     )
-    result = CliRunner().invoke(sanitize, ["-d", name, "trim", "--force"])
+    result = CliRunner().invoke(sanitize, ["--db", name, "trim", "--force"])
 
     assert result.exit_code == 0, result.output
     jobs = pg_db.query(name, "SELECT state FROM queue_job ORDER BY id")
@@ -173,7 +177,7 @@ def test_sanitize_identity_masks_chatter(in_project, pg_db):
         "VALUES ('<p>Call Jane at 555</p>', 'Re: Jane', "
         "'Jane <jane@acme.com>', 'Jane Doe');",
     )
-    result = CliRunner().invoke(sanitize, ["-d", name, "identity", "--force"])
+    result = CliRunner().invoke(sanitize, ["--db", name, "identity", "--force"])
 
     assert result.exit_code == 0, result.output
     row = pg_db.query(
@@ -195,7 +199,7 @@ def _bare_restore(monkeypatch, **attrs):
 
 
 def test_restore_extension_adds_sanitize_options():
-    """``backup restore`` gains --anonymize/--trim/--keep-days."""
+    """``db restore`` gains --anonymize/--trim/--keep-days."""
     names = {param.name for param in RestoreSanitize.get_options()}
 
     assert {"anonymize", "trim", "keep_days"} <= names
@@ -214,7 +218,7 @@ def test_restore_sanitize_delegates_to_db_sanitize(monkeypatch):
 
     monkeypatch.setattr("osh_sanitize.restore.DbSanitize", StubSanitize)
     handler = _bare_restore(monkeypatch, anonymize=True, trim=True, keep_days=7)
-    handler.post_restore()
+    handler.run_post_restore()
 
     assert calls == [
         {
@@ -234,4 +238,21 @@ def test_restore_sanitize_skips_without_flags(monkeypatch):
         lambda *a, **kw: (_ for _ in ()).throw(AssertionError("sanitize ran")),
     )
     handler = _bare_restore(monkeypatch, anonymize=False, trim=False)
-    handler.post_restore()
+    handler.run_post_restore()
+
+
+def test_sanitize_dash_d_warns_deprecated(in_project, pg_db):
+    """``-d``/``--database`` still works but warns it is deprecated."""
+    name = pg_db.create()
+
+    result = CliRunner().invoke(sanitize, ["-d", name, "--force"])
+
+    assert result.exit_code == 0, result.output
+    assert "deprecated" in result.output
+
+
+def test_sanitize_rejects_db_and_database_together(in_project):
+    """Giving the name via ``--db`` and ``-d`` is a usage error."""
+    result = CliRunner().invoke(sanitize, ["--db", "a", "-d", "b"])
+
+    assert result.exit_code == 2

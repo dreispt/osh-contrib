@@ -173,3 +173,139 @@ def test_apps_group_on_the_cli(installed):
     assert "update" not in listed
     assert "installed" not in listed
     assert "uninstall" not in listed
+
+
+def test_legacy_restore_keeps_sanitize_options(installed):
+    """``osh backup restore --help`` still lists the sanitize flags."""
+    from click.testing import CliRunner
+    from osh.cli import main
+
+    result = CliRunner().invoke(main, ["backup", "restore", "--help"])
+
+    assert result.exit_code == 0, result.output
+    assert "--anonymize" in result.output
+    assert "--trim" in result.output
+
+
+def test_requested_restore_sanitize_preflight_and_failure(
+    installed, monkeypatch, tmp_path
+):
+    """Requested sanitization is checked before restore and fails loudly.
+
+    ``--anonymize``/``--trim`` require an Osh project — verified before the
+    target database is touched — and a sanitize failure after the restore
+    fails the command while keeping the restored database. The restore
+    steps are stubbed: this test only records that they ran, in order,
+    and never touches a database.
+    """
+    import click
+    from click.testing import CliRunner
+    from osh.cli import main
+
+    from osh_sanitize.restore import DbSanitize
+
+    dump = tmp_path / "dump.sql"
+    dump.write_text("SELECT 1;\n")
+    steps = []
+
+    def prepare(self):
+        steps.append("prepare")
+
+    def restore(self):
+        steps.append("restore")
+
+    monkeypatch.setattr(resolve("db.restore"), "prepare_target", prepare)
+    monkeypatch.setattr(resolve("db.restore"), "restore_dump", restore)
+
+    args = [
+        "db",
+        "restore",
+        str(dump),
+        "--db",
+        "synthetic-fixture",
+        "--no-neutralize",
+        "--anonymize",
+    ]
+    monkeypatch.chdir(tmp_path)
+
+    result = CliRunner().invoke(main, args)
+
+    assert result.exit_code != 0
+    assert "Not inside an Osh project" in result.output
+    assert steps == []
+
+    (tmp_path / ".osh").mkdir()
+    (tmp_path / ".git").mkdir()
+
+    def fail(self):
+        raise click.ClickException("synthetic masking failure")
+
+    monkeypatch.setattr(DbSanitize, "run", fail)
+
+    result = CliRunner().invoke(main, args)
+
+    assert result.exit_code != 0
+    assert "synthetic masking failure" in result.output
+    assert steps == ["prepare", "restore"]
+
+
+def test_legacy_restore_preserves_fingerprint_hook(installed, monkeypatch, tmp_path):
+    """``osh backup restore`` keeps the post-restore fingerprint baseline."""
+    from click.testing import CliRunner
+    from osh.cli import main
+
+    from osh_update import core as update_core
+
+    dump = tmp_path / "dump.sql"
+    dump.write_text("SELECT 1;\n")
+    (tmp_path / ".osh").mkdir()
+    (tmp_path / ".git").mkdir()
+    monkeypatch.chdir(tmp_path)
+
+    steps = []
+
+    def prepare(self):
+        steps.append("prepare")
+
+    def restore(self):
+        steps.append("restore")
+
+    monkeypatch.setattr(resolve("db.restore"), "prepare_target", prepare)
+    monkeypatch.setattr(resolve("db.restore"), "restore_dump", restore)
+    monkeypatch.setattr(
+        update_core.store,
+        "get_module_states",
+        lambda *args, **kwargs: {"base": "installed"},
+    )
+    monkeypatch.setattr(
+        update_core.store,
+        "read_fingerprints",
+        lambda *args, **kwargs: None,
+    )
+    written = []
+
+    def write_fingerprints(base, db_name, mapping, ctx=None):
+        written.append((db_name, mapping))
+
+    monkeypatch.setattr(update_core.store, "write_fingerprints", write_fingerprints)
+    monkeypatch.setattr(
+        update_core,
+        "fingerprint_project_modules",
+        lambda *args, **kwargs: {"base": "digest"},
+    )
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "backup",
+            "restore",
+            str(dump),
+            "--db",
+            "synthetic-fixture",
+            "--no-neutralize",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "deprecated" in result.output
+    assert written == [("synthetic-fixture", {"base": "digest"})]
