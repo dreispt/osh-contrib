@@ -45,7 +45,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
       - name: Install package and test dependencies
-        run: pip install -e ".[tests]" "osh @ git+https://github.com/dreispt/osh.git@master"
+        run: pip install -e ".[tests]" "osh @ git+https://github.com/dreispt/osh.git@master" "pgdump-convert @ git+https://github.com/OdooEssentials/pgdump-convert.git"
 
       - name: Run tests
         run: ./run_tests.sh -q

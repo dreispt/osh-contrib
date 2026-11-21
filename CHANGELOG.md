@@ -8,6 +8,17 @@ mirrors the `osh` version it is tested against (see
 
 ## Unreleased
 
+### Added
+
+- `osh db dump-convert` converts PostgreSQL dumps between server major
+  versions — from a backup zip, a plain SQL file, stdin (`-`), or a
+  project database (`--from-db`, the default inside a project). It now
+  delegates the conversion to the `pgdump-convert` package (install it
+  with `pipx inject osh "pgdump-convert @ git+https://github.com/OdooEssentials/pgdump-convert.git"`),
+  fails fast when the in-container restore reports SQL errors
+  (`--allow-restore-errors` overrides), and writes the zip to stdout
+  with `-` as the output.
+
 ### Changed
 
 - Use `osh db stats DATABASE` and `osh db vacuum DATABASE` to select a
