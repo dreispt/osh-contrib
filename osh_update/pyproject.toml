@@ -15,7 +15,7 @@ requires-python = ">=3.10"
 keywords = ["odoo", "cli", "shell", "development", "osh"]
 dependencies = [
     "click>=8.1",
-    "osh>=1.15.0",
+    "osh>=2.1.0",
 ]
 
 [project.optional-dependencies]
@@ -27,8 +27,8 @@ tests = [
 osh_update = "osh_update"
 
 [tool.osh]
-extends = ["backup.restore"]
-min_osh = "1.15.0"
+extends = ["db.restore", "backup.restore"]
+min_osh = "2.1.0"
 
 # `apps` is shared with osh_uninstall — declare the group description here
 # so `osh apps --help` describes the whole group, not one plugin's slice.

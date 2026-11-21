@@ -15,7 +15,7 @@ requires-python = ">=3.10"
 keywords = ["odoo", "cli", "shell", "development", "osh"]
 dependencies = [
     "click>=8.1",
-    "osh>=2.0.0",
+    "osh>=2.1.0",
 ]
 
 [project.optional-dependencies]
@@ -27,8 +27,8 @@ tests = [
 osh_sanitize = "osh_sanitize"
 
 [tool.osh]
-min_osh = "2.0.0"
-extends = ["backup.restore"]
+min_osh = "2.1.0"
+extends = ["db.restore", "backup.restore"]
 
 [tool.osh.group_commands.db]
 sanitize = "Scrub PII and delete low-value rows from a database."

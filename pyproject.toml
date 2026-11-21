@@ -5,11 +5,10 @@
 # granular installs. Do NOT install the bundle together with individual
 # plugin dists — they ship the same packages and collide.
 #
-# `osh` 1.15.0+ is required — plugins use the runtime API names and the
-# shared `osh.db.psql` helpers. The `osh` name on PyPI resolves to an
-# unrelated package,
-# so install osh (from source/git) before or alongside this dist — never
-# let the resolver fetch `osh` from PyPI.
+# The bundle requires osh 2.1.0+ for the database CLI and restore plugins.
+# The `osh` name on PyPI resolves to an unrelated package, so install osh
+# (from source/git) before or alongside this dist. Never let the resolver
+# fetch `osh` from PyPI.
 [project]
 name = "osh-contrib"
 version = "0.2.0"
@@ -38,7 +37,7 @@ classifiers = [
 ]
 dependencies = [
     "click>=8.1",
-    "osh>=1.15.0",
+    "osh>=2.1.0",
 ]
 
 [project.optional-dependencies]

@@ -3,6 +3,9 @@
 Contributor notes for the plugin monorepo. User-facing install
 instructions live in [README.md](README.md).
 
+See [Production-linked contact masking](specs/sanitize-partial-masking.md)
+for the bundled sanitize policy.
+
 ## Releasing
 
 Contrib tags mirror `osh` versions: tag `vX.Y.Z` marks the contrib state

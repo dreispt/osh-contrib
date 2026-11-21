@@ -8,6 +8,28 @@ mirrors the `osh` version it is tested against (see
 
 ## Unreleased
 
+### Changed
+
+- Use `osh db stats DATABASE` and `osh db vacuum DATABASE` to select a
+  database. The old `-d` and `--db` options still work with a deprecation
+  warning and are scheduled for removal in osh 3.0.
+- Use `osh db sanitize --db DATABASE` to select a database. The old `-d`
+  and `--database` options still work with a deprecation warning and are
+  scheduled for removal in osh 3.0.
+- Both restore spellings run the sanitization and module fingerprint
+  hooks. A failure in explicitly requested sanitization exits nonzero
+  and keeps the restored database.
+- Partial masking keeps recognizable hints in partner names, email,
+  phone, address, and bank details for matching against production.
+  Stored payment tokens retain only display hints; known live provider
+  references are replaced and tokens are archived where supported.
+- Sanitization preserves internal user logins and account display names
+  so developers can keep using their existing credentials; portal user
+  logins are masked like emails. Sanitized copies may still contain
+  identifying information.
+- The bundle and the `osh_dbstats`, `osh_sanitize`, and `osh_update`
+  plugins now require osh 2.1.0 or later.
+
 ## v2.0.1 — 2026-11-17
 
 First tagged release, matched to `osh` 2.0.1. Six plugins:

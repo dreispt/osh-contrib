@@ -3,7 +3,7 @@
 Detects which installed project modules changed since the last update and
 runs ``odoo -u`` on them through the public ``osh odoo`` CLI; installs
 modules with ``odoo -i``. Kept separate from the Click commands so it can
-be reused and monkeypatched in tests. Also hosts the ``backup.restore``
+be reused and monkeypatched in tests. Also hosts the ``db.restore``
 ``post_restore`` extension that fingerprints freshly restored databases.
 """
 
@@ -154,8 +154,8 @@ def record_baseline(
     echo.success(f"Recorded fingerprints for {len(baseline)} module(s) in '{db_name}'.")
 
 
-class RestoreBaseline(resolve("backup.restore")):
-    """Extends ``osh backup restore`` — baseline restored dbs lacking one.
+class _RestoreBaseline:
+    """Baseline restored databases lacking a module fingerprint map.
 
     A restored dump keeps the fingerprint map it carried — it describes the
     code the database was last updated against, so real diffs are still
@@ -171,6 +171,9 @@ class RestoreBaseline(resolve("backup.restore")):
 
     def post_restore(self):
         super().post_restore()
+        if self.base is None:
+            # No project means no modules to fingerprint.
+            return
         states = store.get_module_states(self.base, self.db_name, ctx=self.ctx)
         if states is None:
             return
@@ -183,6 +186,14 @@ class RestoreBaseline(resolve("backup.restore")):
             f"Recorded baseline fingerprints for {len(baseline)} module(s).",
             err=True,
         )
+
+
+class RestoreBaseline(_RestoreBaseline, resolve("db.restore")):
+    """Record a fingerprint baseline after ``osh db restore``."""
+
+
+class LegacyRestoreBaseline(_RestoreBaseline, resolve("backup.restore")):
+    """Keep the fingerprint hook on the deprecated restore spelling."""
 
 
 def _baseline_mapping(current, states, stored=None):

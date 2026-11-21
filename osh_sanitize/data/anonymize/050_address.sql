@@ -1,39 +1,40 @@
--- Anonymize level 2: addresses — street, city and zip fields, masked at
--- their original length. Same guard pattern as the identity level.
-
+-- Anonymize level 2: keep geography while masking street and postcode details.
 DO $$
+DECLARE
+    target regclass;
+    prefix text;
+    field text;
+    col text;
 BEGIN
-    IF to_regclass('res_partner') IS NULL THEN
-        RETURN;
-    END IF;
-    IF EXISTS (SELECT 1 FROM information_schema.columns
-                WHERE table_name = 'res_partner' AND column_name = 'street') THEN
-        UPDATE res_partner SET street = repeat('x', length(street)) WHERE street IS NOT NULL;
-        UPDATE res_partner SET street2 = repeat('x', length(street2)) WHERE street2 IS NOT NULL;
-    END IF;
-    IF EXISTS (SELECT 1 FROM information_schema.columns
-                WHERE table_name = 'res_partner' AND column_name = 'city') THEN
-        UPDATE res_partner SET city = repeat('x', length(city)) WHERE city IS NOT NULL;
-    END IF;
-    IF EXISTS (SELECT 1 FROM information_schema.columns
-                WHERE table_name = 'res_partner' AND column_name = 'zip') THEN
-        UPDATE res_partner SET zip = repeat('x', length(zip)) WHERE zip IS NOT NULL;
-    END IF;
-END $$;
-
-DO $$
-BEGIN
-    IF to_regclass('hr_employee') IS NULL THEN
-        RETURN;
-    END IF;
-    IF EXISTS (SELECT 1 FROM information_schema.columns
-                WHERE table_name = 'hr_employee' AND column_name = 'private_street') THEN
-        UPDATE hr_employee SET private_street = repeat('x', length(private_street)) WHERE private_street IS NOT NULL;
-        UPDATE hr_employee SET private_street2 = repeat('x', length(private_street2)) WHERE private_street2 IS NOT NULL;
-    END IF;
-    IF EXISTS (SELECT 1 FROM information_schema.columns
-                WHERE table_name = 'hr_employee' AND column_name = 'private_city') THEN
-        UPDATE hr_employee SET private_city = repeat('x', length(private_city)) WHERE private_city IS NOT NULL;
-        UPDATE hr_employee SET private_zip = repeat('x', length(private_zip)) WHERE private_zip IS NOT NULL;
-    END IF;
+    FOR target, prefix IN
+        SELECT to_regclass(tbl), pfx
+          FROM (VALUES ('res_partner', ''), ('hr_employee', 'private_')) AS addresses(tbl, pfx)
+    LOOP
+        IF target IS NULL THEN
+            CONTINUE;
+        END IF;
+        FOREACH field IN ARRAY ARRAY['street', 'street2', 'zip'] LOOP
+            col := prefix || field;
+            IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = target
+                            AND attname = col AND attnum > 0 AND NOT attisdropped) THEN
+                CONTINUE;
+            END IF;
+            IF field = 'zip' THEN
+                EXECUTE format($sql$
+                    UPDATE %1$s SET %2$I = CASE
+                        WHEN length(%2$I) >= 5 AND %2$I ~ '^[[:alnum:]]{2}'
+                            THEN left(%2$I, 2) || '***'
+                        ELSE '***'
+                    END WHERE nullif(%2$I, '') IS NOT NULL
+                $sql$, target, col);
+            ELSE
+                EXECUTE format($sql$
+                    UPDATE %1$s SET %2$I = regexp_replace(%2$I,
+                        '([[:alpha:]])(?:[[:alnum:]]{2,}|[*]{3})|[[:alnum:]]+',
+                        $replacement$\1***$replacement$, 'g')
+                    WHERE nullif(%2$I, '') IS NOT NULL
+                $sql$, target, col);
+            END IF;
+        END LOOP;
+    END LOOP;
 END $$;
